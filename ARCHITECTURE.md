@@ -30,7 +30,7 @@ Ce boilerplate Laravel React adopte une architecture hexagonale (aussi appelée 
 - Le **Domaine** ne dépend de rien.
 - L'**Application** dépend du Domaine.
 - L'**Infrastructure** dépend du Domaine et de l'Application.
-- L'**Interface Utilisateur** (React) communique avec l'Application via des routes API Laravel.
+- L'**Interface Utilisateur** (React) communique avec l'Application via Inertia.js et les routes web Laravel.
 
 ## Exemple de flux (mise à jour d'un profil utilisateur)
 

@@ -43,7 +43,7 @@ Ce boilerplate Laravel React suit une architecture hexagonale moderne avec une s
 │   │   ├── hooks/                    # Hooks React personnalisés
 │   │   └── lib/                      # Utilitaires
 │   └── views/                        # Templates Blade
-├── routes/                           # Fichiers de routes
+├── routes/                           # Fichiers de routes (web uniquement)
 ├── storage/                          # Stockage Laravel
 ├── tests/                            # Tests automatisés
 │   ├── Feature/                      # Tests d'intégration

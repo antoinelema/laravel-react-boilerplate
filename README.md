@@ -8,7 +8,7 @@ Un boilerplate moderne Laravel + React avec architecture hexagonale pour démarr
 
 - **Backend** : Laravel 11 (PHP 8.2+)
 - **Frontend** : React 18 + Inertia.js
-- **Base de données** : MySQL/SQLite
+- **Base de données** : MySQL (via Docker) / SQLite (local)
 - **UI** : Tailwind CSS + shadcn/ui
 - **Tests** : PHPUnit + React Testing
 - **Outils** : Vite, TypeScript
@@ -121,18 +121,20 @@ Cette approche garantit :
 
 ```bash
 # Tests
-composer test
-npm test
+vendor/bin/phpunit
+# Note: npm test script not configured
 
-# Linting
-composer lint
-npm run lint
+# Code formatting
+vendor/bin/php-cs-fixer fix
+
+# Static analysis  
+vendor/bin/phpstan analyse
 
 # Build production
 npm run build
 
-# Analyse statique
-composer analyse
+# Development environment
+composer dev
 ```
 
 ## Configuration Google OAuth
