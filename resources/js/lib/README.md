@@ -1,6 +1,6 @@
 # Utilitaires frontend : gestion des erreurs API
 
-Ce dossier contient les utilitaires partagés pour le frontend React de My Garage.
+Ce dossier contient les utilitaires partagés pour le frontend React du boilerplate Laravel React.
 
 ## handleApiError
 
@@ -33,6 +33,6 @@ fetch('/endpoint', { ... })
 - **Comportement** :
   - Si le backend retourne une erreur 500 ou une réponse non-JSON, un message générique est affiché.
   - Si le backend fournit un message, il est affiché à l'utilisateur.
-  - Ce pattern est utilisé dans tous les formulaires critiques (profil, véhicules, maintenance, etc.).
+  - Ce pattern est utilisé dans tous les formulaires critiques (profil, etc.).
 
 Voir aussi le README pour la philosophie générale.

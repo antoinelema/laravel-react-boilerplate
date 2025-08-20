@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-L'application My Garage adopte une architecture hexagonale (aussi appelée Clean Architecture) pour garantir la séparation des responsabilités, la testabilité et la maintenabilité du code. Cette approche permet d'isoler la logique métier du framework, de la base de données et de l'interface utilisateur.
+Ce boilerplate Laravel React adopte une architecture hexagonale (aussi appelée Clean Architecture) pour garantir la séparation des responsabilités, la testabilité et la maintenabilité du code. Cette approche permet d'isoler la logique métier du framework, de la base de données et de l'interface utilisateur.
 
 ## Découpage principal
 
