@@ -338,8 +338,10 @@ export default function ProspectSearch() {
                                     
                                     {searchStats.search && (
                                         <div className="text-xs text-gray-500">
-                                            ID: {searchStats.search.id} | 
-                                            Taux de conversion: {searchStats.search.conversion_rate.toFixed(1)}%
+                                            ID: {searchStats.search.id}
+                                            {searchStats.search.conversion_rate !== undefined && (
+                                                <> | Taux de conversion: {searchStats.search.conversion_rate.toFixed(1)}%</>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -364,8 +366,8 @@ export default function ProspectSearch() {
                                             ))}
                                         </div>
                                         <div className="text-xs text-gray-500 mt-2">
-                                            Temps total: {(searchStats.sourcesStats.total_time_seconds * 1000).toFixed(0)}ms | 
-                                            Sources réussies: {searchStats.sourcesStats.sources_successful}/{searchStats.sourcesStats.sources_used}
+                                            Temps total: {((searchStats.sourcesStats.total_time_seconds || 0) * 1000).toFixed(0)}ms | 
+                                            Sources réussies: {searchStats.sourcesStats.sources_successful || 0}/{searchStats.sourcesStats.sources_used || 0}
                                         </div>
                                     </div>
                                 )}
