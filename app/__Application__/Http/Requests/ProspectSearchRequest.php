@@ -25,7 +25,7 @@ class ProspectSearchRequest extends FormRequest
             'filters.postal_code' => ['sometimes', 'nullable', 'string', 'max:10'],
             'filters.limit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'sources' => ['sometimes', 'array'],
-            'sources.*' => ['string', 'in:pages_jaunes,google_maps'],
+            'sources.*' => ['string', 'in:google_maps,nominatim,clearbit,hunter'],
             'save_search' => ['sometimes', 'boolean'],
         ];
     }
@@ -45,7 +45,7 @@ class ProspectSearchRequest extends FormRequest
             'filters.limit.min' => 'Le nombre de résultats minimum est 1',
             'filters.limit.max' => 'Le nombre de résultats maximum est 100',
             'sources.array' => 'Les sources doivent être un tableau',
-            'sources.*.in' => 'Source invalide. Sources supportées: pages_jaunes, google_maps',
+            'sources.*.in' => 'Source invalide. Sources supportées: google_maps, nominatim, clearbit, hunter',
         ];
     }
 

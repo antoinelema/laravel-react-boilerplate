@@ -42,17 +42,24 @@ return [
         ],
     ],
 
-    'pages_jaunes' => [
-        'api_key' => env('PAGES_JAUNES_API_KEY'),
-        'base_url' => env('PAGES_JAUNES_BASE_URL', 'https://api.pagesjaunes.fr'),
-    ],
 
     'google_maps' => [
         'api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    'nominatim' => [
+        'base_url' => env('NOMINATIM_BASE_URL', 'https://nominatim.openstreetmap.org'),
+        'user_agent' => env('NOMINATIM_USER_AGENT', 'Prospecto/1.0'),
+    ],
+
+    'clearbit' => [
+        'api_key' => env('CLEARBIT_API_KEY'),
+        'base_url' => env('CLEARBIT_BASE_URL', 'https://company.clearbit.com/v2'),
+    ],
+
     'hunter' => [
         'api_key' => env('HUNTER_API_KEY'),
+        'base_url' => env('HUNTER_BASE_URL', 'https://api.hunter.io/v2'),
     ],
 
 ];
