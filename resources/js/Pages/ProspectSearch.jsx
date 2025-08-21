@@ -516,7 +516,12 @@ function ProspectCard({ prospect, onSave }) {
                     </div>
                     <div className="flex items-center gap-1 ml-2">
                         <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                        <span className="text-sm font-medium">{prospect.relevance_score}</span>
+                        <span className="text-sm font-medium">
+                            {typeof prospect.relevance_score === 'object' 
+                                ? (prospect.relevance_score?.total || prospect.relevance_score?.score || 0)
+                                : (prospect.relevance_score || 0)
+                            }
+                        </span>
                     </div>
                 </div>
                 
@@ -616,37 +621,6 @@ function ProspectCard({ prospect, onSave }) {
                     </p>
                 )}
 
-                {/* Données d'enrichissement */}
-                {prospect.enrichment_data && (
-                    <div className="space-y-2 p-2 bg-blue-50 rounded-lg border-l-2 border-blue-200">
-                        <div className="text-xs font-medium text-blue-800">Données enrichies</div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                            {prospect.enrichment_data.employee_count && (
-                                <div><strong>Employés:</strong> {prospect.enrichment_data.employee_count}</div>
-                            )}
-                            {prospect.enrichment_data.revenue && (
-                                <div><strong>CA:</strong> {new Intl.NumberFormat('fr-FR', {style: 'currency', currency: 'EUR'}).format(prospect.enrichment_data.revenue)}</div>
-                            )}
-                            {prospect.enrichment_data.founded_year && (
-                                <div><strong>Fondée:</strong> {prospect.enrichment_data.founded_year}</div>
-                            )}
-                            {prospect.enrichment_data.industry && (
-                                <div><strong>Industrie:</strong> {prospect.enrichment_data.industry}</div>
-                            )}
-                        </div>
-                        {prospect.enrichment_data.logo_url && (
-                            <div className="flex items-center gap-2">
-                                <img 
-                                    src={prospect.enrichment_data.logo_url} 
-                                    alt="Logo" 
-                                    className="w-6 h-6 object-contain rounded"
-                                    onError={(e) => {e.target.style.display = 'none'}}
-                                />
-                                <span className="text-xs text-gray-500">Logo disponible</span>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Sources fusionnées */}
                 {prospect.merged_from && prospect.merged_from.length > 0 && (
@@ -663,7 +637,7 @@ function ProspectCard({ prospect, onSave }) {
                         </div>
                         {prospect.data_quality && (
                             <div className="mt-1 text-xs text-green-700">
-                                Qualité: {(prospect.data_quality.completeness * 100).toFixed(0)}%
+                                Qualité: {((prospect.data_quality.completeness || 0) * 100).toFixed(0)}%
                                 {prospect.data_quality.verified && ' ✓ Vérifié'}
                             </div>
                         )}
@@ -690,7 +664,7 @@ function ProspectCard({ prospect, onSave }) {
                 {/* Actions */}
                 <div className="flex items-center justify-between pt-2 border-t">
                     <Badge variant="outline" className="text-xs">
-                        Source: {prospect.source}
+                        Source: {typeof prospect.source === 'object' ? (prospect.source?.name || 'Inconnu') : (prospect.source || 'Inconnu')}
                     </Badge>
                     
                     <div className="flex gap-1">

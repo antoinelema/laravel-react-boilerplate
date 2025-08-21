@@ -179,9 +179,9 @@ class ProspectSearchController extends Controller
                 'sector' => $prospect['sector'] ?? $prospect['category'] ?? null,
                 'city' => $prospect['city'] ?? $prospect['locality'] ?? null,
                 'postal_code' => $prospect['postal_code'] ?? $prospect['postcode'] ?? null,
-                'address' => $prospect['address'] ?? $prospect['display_name'] ?? null,
-                'phone' => $prospect['phone'] ?? $prospect['contact_info']['phone'] ?? null,
-                'email' => $prospect['email'] ?? $prospect['contact_info']['email'] ?? null,
+                'address' => $this->extractAddress($prospect),
+                'phone' => $prospect['phone'] ?? (isset($prospect['contact_info']['phone']) ? $prospect['contact_info']['phone'] : null),
+                'email' => $prospect['email'] ?? (isset($prospect['contact_info']['email']) ? $prospect['contact_info']['email'] : null),
                 'website' => $prospect['website'] ?? $prospect['domain'] ?? null,
                 'description' => $prospect['description'] ?? null,
                 'latitude' => $prospect['latitude'] ?? $prospect['lat'] ?? null,
@@ -209,5 +209,38 @@ class ProspectSearchController extends Controller
         }
 
         return $formatted;
+    }
+
+    /**
+     * Extrait l'adresse sous forme de chaîne depuis les données du prospect
+     */
+    private function extractAddress(array $prospect): ?string
+    {
+        // Si l'adresse est déjà une chaîne
+        if (isset($prospect['address']) && is_string($prospect['address'])) {
+            return $prospect['address'];
+        }
+        
+        // Si l'adresse est un objet, construire la chaîne
+        if (isset($prospect['address']) && is_array($prospect['address'])) {
+            $address = $prospect['address'];
+            
+            // Priorité à l'adresse complète formatée
+            if (!empty($address['full'])) {
+                return $address['full'];
+            }
+            
+            // Sinon construire à partir des composants
+            $parts = [];
+            if (!empty($address['street'])) $parts[] = $address['street'];
+            if (!empty($address['city'])) $parts[] = $address['city'];
+            if (!empty($address['postal_code'])) $parts[] = $address['postal_code'];
+            if (!empty($address['country'])) $parts[] = $address['country'];
+            
+            return !empty($parts) ? implode(', ', $parts) : null;
+        }
+        
+        // Fallback vers display_name ou formatted_address
+        return $prospect['display_name'] ?? $prospect['formatted_address'] ?? null;
     }
 }
