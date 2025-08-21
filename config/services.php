@@ -42,4 +42,17 @@ return [
         ],
     ],
 
+    'pages_jaunes' => [
+        'api_key' => env('PAGES_JAUNES_API_KEY'),
+        'base_url' => env('PAGES_JAUNES_BASE_URL', 'https://api.pagesjaunes.fr'),
+    ],
+
+    'google_maps' => [
+        'api_key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'hunter' => [
+        'api_key' => env('HUNTER_API_KEY'),
+    ],
+
 ];

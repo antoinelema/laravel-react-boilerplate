@@ -1,0 +1,49 @@
+<?php
+
+use App\__Application__\Http\Controllers\Api\ProspectController;
+use App\__Application__\Http\Controllers\Api\ProspectSearchController;
+use App\__Application__\Http\Controllers\Api\ProspectNoteController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| is assigned the "api" middleware group.
+|
+*/
+
+Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+    
+    // Recherche de prospects via APIs externes
+    Route::prefix('prospects')->group(function () {
+        // Recherche externe
+        Route::post('search', [ProspectSearchController::class, 'search']);
+        Route::get('sources', [ProspectSearchController::class, 'sources']);
+        
+        // CRUD prospects
+        Route::get('/', [ProspectController::class, 'index']);
+        Route::post('/', [ProspectController::class, 'store']);
+        Route::get('{id}', [ProspectController::class, 'show']);
+        Route::put('{id}', [ProspectController::class, 'update']);
+        Route::delete('{id}', [ProspectController::class, 'destroy']);
+        
+        // Recherche dans prospects existants
+        Route::get('search/local', [ProspectController::class, 'search']);
+    });
+    
+    // Notes de prospects
+    Route::prefix('prospects/{prospectId}/notes')->group(function () {
+        Route::get('/', [ProspectNoteController::class, 'index']);
+        Route::post('/', [ProspectNoteController::class, 'store']);
+        Route::put('{noteId}', [ProspectNoteController::class, 'update']);
+        Route::delete('{noteId}', [ProspectNoteController::class, 'destroy']);
+    });
+    
+    // Historique des recherches (à implémenter plus tard)
+    // Route::get('search-history', [ProspectSearchController::class, 'history']);
+    
+});

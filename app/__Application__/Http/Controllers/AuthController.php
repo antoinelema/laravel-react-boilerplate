@@ -8,7 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
-use App\__Infrastructure__\Eloquent\UserEloquent;
+use App\__Infrastructure__\Persistence\Eloquent\User;
 
 class AuthController extends Controller
 {
@@ -41,10 +41,10 @@ class AuthController extends Controller
     public function handleGoogleCallback()
     {
         $googleUser = Socialite::driver('google')->user();
-        $user = UserEloquent::where('email', $googleUser->getEmail())->first();
+        $user = User::where('email', $googleUser->getEmail())->first();
         if (!$user) {
             [$firstname, $name] = $this->splitFullName($googleUser->getName() ?? $googleUser->getNickname() ?? $googleUser->getEmail());
-            $user = UserEloquent::create([
+            $user = User::create([
                 'name' => $name,
                 'firstname' => $firstname,
                 'email' => $googleUser->getEmail(),
@@ -77,7 +77,7 @@ class AuthController extends Controller
         ]);
         Log::info('Register data', $data);
         $data['password'] = Hash::make($data['password']);
-        $user = UserEloquent::create($data);
+        $user = User::create($data);
         Auth::login($user);
         return response()->json([
             'name' => $user->name,
@@ -121,7 +121,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }        
 
-        $eloquentUser = UserEloquent::find($user->id);
+        $eloquentUser = User::find($user->id);
         if (!$eloquentUser) {
             return response()->json(['message' => 'User not found'], 404);
         }

@@ -4,8 +4,9 @@ import { Button } from '../components/ui/button';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { Link, router } from '@inertiajs/react';
 
-export default function UserMenu() {
-  const user = useCurrentUser();
+export default function UserMenu({ user: propUser }) {
+  const hookUser = useCurrentUser();
+  const user = propUser || hookUser;
 
   const handleLogout = () => {
     router.post('/logout', {}, {

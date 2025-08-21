@@ -107,4 +107,16 @@ return [
 
 
     'vite_disable' => env('VITE_DISABLE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | External Services Demo Mode
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, external services (Google Maps, Pages Jaunes) will return
+    | demo data instead of making real API calls. Useful for development.
+    |
+    */
+
+    'external_services_demo_mode' => env('EXTERNAL_SERVICES_DEMO_MODE', true),
 ];

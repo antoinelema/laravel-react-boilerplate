@@ -32,4 +32,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
+    
+    // Routes prospects
+    Route::get('/prospects/search', function () {
+        return Inertia::render('ProspectSearch');
+    });
+    
+    Route::get('/prospects', function () {
+        return Inertia::render('ProspectDashboard');
+    });
 });

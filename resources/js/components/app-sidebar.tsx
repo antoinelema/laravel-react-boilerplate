@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Settings, User } from "lucide-react"
+import { Home, Settings, User, Search, Users } from "lucide-react"
 
 import {
   Sidebar,
@@ -14,19 +14,24 @@ import {
 
 const items = [
   {
-    title: "Home",
+    title: "Accueil",
     url: "/",
     icon: Home,
   },
   {
-    title: "Profile",
-    url: "/profile",
-    icon: User,
+    title: "Recherche",
+    url: "/prospects/search",
+    icon: Search,
   },
   {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    title: "Mes Prospects",
+    url: "/prospects",
+    icon: Users,
+  },
+  {
+    title: "Profil",
+    url: "/profile",
+    icon: User,
   }
 ]
 
@@ -35,7 +40,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel>Prospecto</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item, index) => (

@@ -8,6 +8,12 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use App\__Domain__\Data\User\Collection;
 use App\__Infrastructure__\Persistence\User\UserRepository;
+use App\__Domain__\Data\Prospect\Collection as ProspectCollection;
+use App\__Domain__\Data\ProspectNote\Collection as ProspectNoteCollection;
+use App\__Domain__\Data\ProspectSearch\Collection as ProspectSearchCollection;
+use App\__Infrastructure__\Persistence\Prospect\ProspectRepository;
+use App\__Infrastructure__\Persistence\ProspectNote\ProspectNoteRepository;
+use App\__Infrastructure__\Persistence\ProspectSearch\ProspectSearchRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +27,11 @@ class AppServiceProvider extends ServiceProvider
             Collection::class,
             UserRepository::class
         );
+
+        // Prospect repositories bindings
+        $this->app->bind(ProspectCollection::class, ProspectRepository::class);
+        $this->app->bind(ProspectNoteCollection::class, ProspectNoteRepository::class);
+        $this->app->bind(ProspectSearchCollection::class, ProspectSearchRepository::class);
     }
 
     /**
