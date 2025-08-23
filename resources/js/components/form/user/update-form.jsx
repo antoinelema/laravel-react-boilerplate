@@ -5,7 +5,7 @@ import { Form, FormItem, FormLabel, FormControl, FormMessage, FormField } from '
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/secureApi';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Nom requis.' }),

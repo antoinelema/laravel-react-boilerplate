@@ -14,7 +14,7 @@ import {
     Filter, Plus, Edit, Trash2, Users, TrendingUp, MessageSquare
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api'
+import { secureApiClient } from '@/lib/secureApi'
 
 export default function ProspectDashboard() {
     const [prospects, setProspects] = useState([])
@@ -45,7 +45,7 @@ export default function ProspectDashboard() {
     const fetchProspects = async () => {
         setIsLoading(true)
         try {
-            const data = await apiClient.get('/api/v1/prospects')
+            const data = await secureApiClient.get('/api/v1/prospects')
             setProspects(data.data.prospects)
             calculateStats(data.data.prospects)
 
@@ -123,7 +123,7 @@ export default function ProspectDashboard() {
         }
 
         try {
-            await apiClient.delete(`/api/v1/prospects/${prospectId}`)
+            await secureApiClient.delete(`/api/v1/prospects/${prospectId}`)
 
             toast.success('Prospect supprimé avec succès')
             setProspects(prev => prev.filter(p => p.id !== prospectId))
@@ -408,7 +408,7 @@ function ProspectDashboardCard({ prospect, onDelete, onProspectUpdate }) {
     const fetchNotes = async () => {
         setIsLoadingNotes(true)
         try {
-            const data = await apiClient.get(`/api/v1/prospects/${prospect.id}/notes`)
+            const data = await secureApiClient.get(`/api/v1/prospects/${prospect.id}/notes`)
             setNotes(data.data.notes || [])
         } catch (error) {
             toast.error('Erreur lors du chargement des notes')
@@ -422,7 +422,7 @@ function ProspectDashboardCard({ prospect, onDelete, onProspectUpdate }) {
 
         setIsAddingNote(true)
         try {
-            const data = await apiClient.post(`/api/v1/prospects/${prospect.id}/notes`, {
+            const data = await secureApiClient.post(`/api/v1/prospects/${prospect.id}/notes`, {
                 content: newNote,
                 type: 'note'
             })

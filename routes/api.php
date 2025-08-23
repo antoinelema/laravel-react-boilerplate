@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum,web'])->prefix('v1')->group(function () {
     
     // Recherche de prospects via APIs externes
     Route::prefix('prospects')->group(function () {
@@ -54,7 +54,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 });
 
 // Routes API admin
-Route::middleware(['auth:sanctum', 'admin'])->prefix('v1/admin')->group(function () {
+Route::middleware(['auth:sanctum,web', 'admin'])->prefix('v1/admin')->group(function () {
     Route::get('stats', [AdminController::class, 'stats']);
     Route::get('users/{user}', [AdminController::class, 'userDetails']);
     Route::post('users/{user}/upgrade', [AdminController::class, 'upgradeUser']);

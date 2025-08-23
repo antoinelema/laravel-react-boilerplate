@@ -9,16 +9,15 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Search, MapPin, Phone, Mail, Globe, Star, MessageSquare, Users, Building2, Database, TrendingUp, Copy, CheckCircle, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api'
+import { secureApiClient as apiClient } from '@/lib/secureApi'
 
 export default function ProspectSearch() {
     const [searchForm, setSearchForm] = useState({
         query: '',
         filters: {
-            location: '',
+            location: '', // Champ fusionné pour ville/code postal
             sector: '',
-            radius: '',
-            postal_code: '',
+            radius: 5, // Rayon par défaut en km
             limit: '20'
         },
         sources: [], // L'agrégateur utilise toutes les sources disponibles
@@ -69,7 +68,8 @@ export default function ProspectSearch() {
 
             // Convertir les chaînes en nombres pour radius et limit
             if (cleanedForm.filters.radius) {
-                cleanedForm.filters.radius = parseInt(cleanedForm.filters.radius, 10)
+                // Convertir km en mètres pour le backend
+                cleanedForm.filters.radius = parseInt(cleanedForm.filters.radius, 10) * 1000
             }
             if (cleanedForm.filters.limit) {
                 cleanedForm.filters.limit = parseInt(cleanedForm.filters.limit, 10)
@@ -190,10 +190,13 @@ export default function ProspectSearch() {
                                     <Label htmlFor="location">Localisation</Label>
                                     <Input
                                         id="location"
-                                        placeholder="Paris, Lyon..."
+                                        placeholder="Paris, Lyon, 75001, Paris 75001..."
                                         value={searchForm.filters.location}
                                         onChange={(e) => updateFormField('filters.location', e.target.value)}
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Ville, code postal ou combinaison
+                                    </p>
                                 </div>
                                 
                                 <div>
@@ -207,13 +210,28 @@ export default function ProspectSearch() {
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="postal_code">Code postal</Label>
-                                    <Input
-                                        id="postal_code"
-                                        placeholder="75001"
-                                        value={searchForm.filters.postal_code}
-                                        onChange={(e) => updateFormField('filters.postal_code', e.target.value)}
-                                    />
+                                    <Label htmlFor="radius">Rayon de recherche</Label>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                id="radius"
+                                                type="range"
+                                                min="1"
+                                                max="50"
+                                                step="1"
+                                                value={searchForm.filters.radius}
+                                                onChange={(e) => updateFormField('filters.radius', parseInt(e.target.value))}
+                                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                            <span className="text-sm font-medium text-gray-700 min-w-[3rem]">
+                                                {searchForm.filters.radius} km
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-gray-400">
+                                            <span>1 km</span>
+                                            <span>50 km</span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div>
