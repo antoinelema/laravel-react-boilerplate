@@ -16,8 +16,8 @@ class SearchQuotaService
      */
     public function canUserSearch(User $user): bool
     {
-        // Les utilisateurs premium n'ont pas de limites
-        if ($user->isPremium()) {
+        // Les admins et les utilisateurs premium n'ont pas de limites
+        if ($user->isAdmin() || $user->isPremium()) {
             return true;
         }
 
@@ -33,10 +33,11 @@ class SearchQuotaService
      */
     public function consumeSearchQuota(User $user): bool
     {
-        // Les utilisateurs premium n'ont pas de limites
-        if ($user->isPremium()) {
-            Log::info('Recherche effectuée par utilisateur premium', [
-                'user_id' => $user->id
+        // Les admins et les utilisateurs premium n'ont pas de limites
+        if ($user->isAdmin() || $user->isPremium()) {
+            Log::info('Recherche effectuée par utilisateur avec accès illimité', [
+                'user_id' => $user->id,
+                'type' => $user->isAdmin() ? 'admin' : 'premium'
             ]);
             return true;
         }
@@ -77,7 +78,7 @@ class SearchQuotaService
      */
     public function getRemainingSearches(User $user): int
     {
-        if ($user->isPremium()) {
+        if ($user->isAdmin() || $user->isPremium()) {
             return -1; // Illimité
         }
 
@@ -92,9 +93,10 @@ class SearchQuotaService
      */
     public function getQuotaInfo(User $user): array
     {
-        if ($user->isPremium()) {
+        if ($user->isAdmin() || $user->isPremium()) {
             return [
-                'is_premium' => true,
+                'is_premium' => $user->isPremium(),
+                'is_admin' => $user->isAdmin(),
                 'unlimited' => true,
                 'remaining' => -1,
                 'limit' => -1,
@@ -214,7 +216,7 @@ class SearchQuotaService
      */
     private function resetDailyQuotaIfNeeded(User $user): void
     {
-        if (!$user->isPremium()) {
+        if (!$user->isAdmin() && !$user->isPremium()) {
             $user->resetDailySearchesIfNeeded();
         }
     }

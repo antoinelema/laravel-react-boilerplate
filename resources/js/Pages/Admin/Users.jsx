@@ -268,8 +268,9 @@ export default function AdminUsers() {
                                                         onClick={() => downgradeUser(user.id)}
                                                         variant="destructive"
                                                         size="sm"
+                                                        className="text-white"
                                                     >
-                                                        <svg className="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className="mr-1 h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                                         </svg>
                                                         Downgrade
