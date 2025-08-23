@@ -3,6 +3,7 @@
 use App\__Application__\Http\Controllers\Api\ProspectController;
 use App\__Application__\Http\Controllers\Api\ProspectSearchController;
 use App\__Application__\Http\Controllers\Api\ProspectNoteController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,5 +51,13 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     
     // Historique des recherches (à implémenter plus tard)
     // Route::get('search-history', [ProspectSearchController::class, 'history']);
-    
+});
+
+// Routes API admin
+Route::middleware(['auth:sanctum', 'admin'])->prefix('v1/admin')->group(function () {
+    Route::get('stats', [AdminController::class, 'stats']);
+    Route::get('users/{user}', [AdminController::class, 'userDetails']);
+    Route::post('users/{user}/upgrade', [AdminController::class, 'upgradeUser']);
+    Route::post('users/{user}/downgrade', [AdminController::class, 'downgradeUser']);
+    Route::post('users/{user}/reset-quota', [AdminController::class, 'resetUserQuota']);
 });

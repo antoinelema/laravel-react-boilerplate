@@ -15,7 +15,6 @@ const formSchema = z.object({
 });
 
 const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
-  console.log('UpdateUserForm rendered with user:', user);
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {

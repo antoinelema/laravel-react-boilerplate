@@ -1,5 +1,6 @@
 <?php
 use App\__Application__\Http\Controllers\AuthController;
+use App\Http\Controllers\AdminController;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\Facades\Socialite;
@@ -49,4 +50,15 @@ Route::middleware('auth')->group(function () {
 // Page d'upgrade pour utilisateurs gratuits
 Route::middleware('auth')->get('/upgrade', function () {
     return Inertia::render('UpgradePage');
+});
+
+// Routes admin
+Route::middleware(['auth', 'admin.web'])->prefix('admin')->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
+    
+    // Actions admin avec authentification web
+    Route::post('/users/{user}/upgrade', [AdminController::class, 'upgradeUser'])->name('admin.users.upgrade');
+    Route::post('/users/{user}/downgrade', [AdminController::class, 'downgradeUser'])->name('admin.users.downgrade');
+    Route::post('/users/{user}/reset-quota', [AdminController::class, 'resetUserQuota'])->name('admin.users.reset-quota');
 });

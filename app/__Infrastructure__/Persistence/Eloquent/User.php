@@ -29,6 +29,7 @@ class User extends Authenticatable
         'password',
         'google_id',
         'avatar',
+        'role',
         'subscription_type',
         'subscription_expires_at',
         'daily_searches_count',
@@ -49,7 +50,7 @@ class User extends Authenticatable
 
     public function prospects()
     {
-        return $this->hasMany(Prospect::class);
+        return $this->hasMany(\App\__Infrastructure__\Eloquent\ProspectEloquent::class);
     }
 
     /**
@@ -186,5 +187,21 @@ class User extends Authenticatable
     {
         return $query->where('subscription_type', 'free')
                     ->orWhere('subscription_expires_at', '<=', now());
+    }
+
+    /**
+     * Vérifier si l'utilisateur est admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Scope pour les admins
+     */
+    public function scopeAdmin($query)
+    {
+        return $query->where('role', 'admin');
     }
 }
