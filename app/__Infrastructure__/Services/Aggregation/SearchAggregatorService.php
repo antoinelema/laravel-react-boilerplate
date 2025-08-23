@@ -4,7 +4,6 @@ namespace App\__Infrastructure__\Services\Aggregation;
 
 use App\__Infrastructure__\Services\External\GoogleMapsService;
 use App\__Infrastructure__\Services\External\NominatimService;
-use App\__Infrastructure__\Services\External\ClearbitService;
 use App\__Infrastructure__\Services\External\HunterService;
 use App\__Infrastructure__\Services\Cache\ProspectSearchCacheService;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +17,6 @@ class SearchAggregatorService
 {
     private GoogleMapsService $googleMapsService;
     private NominatimService $nominatimService;
-    private ClearbitService $clearbitService;
     private HunterService $hunterService;
     private ProspectSearchCacheService $cacheService;
     private ResultMergerService $mergerService;
@@ -26,14 +24,12 @@ class SearchAggregatorService
     public function __construct(
         GoogleMapsService $googleMapsService,
         NominatimService $nominatimService,
-        ClearbitService $clearbitService,
         HunterService $hunterService,
         ProspectSearchCacheService $cacheService,
         ResultMergerService $mergerService
     ) {
         $this->googleMapsService = $googleMapsService;
         $this->nominatimService = $nominatimService;
-        $this->clearbitService = $clearbitService;
         $this->hunterService = $hunterService;
         $this->cacheService = $cacheService;
         $this->mergerService = $mergerService;
@@ -63,7 +59,7 @@ class SearchAggregatorService
             
             // Sources par défaut si aucune spécifiée
             if (empty($sources)) {
-                $sources = ['google_maps', 'nominatim', 'clearbit'];
+                $sources = ['google_maps', 'nominatim'];
             }
             
             Log::info('Début de recherche agrégée', [
@@ -223,10 +219,6 @@ class SearchAggregatorService
                     $results = $this->nominatimService->search($query, $filters);
                     break;
                     
-                case 'clearbit':
-                    $results = $this->clearbitService->searchCompanies($query, $filters);
-                    break;
-                    
                 case 'hunter':
                     // Pour Hunter, on a besoin d'un domaine, donc on skip si pas disponible
                     if (!empty($filters['domain'])) {
@@ -290,13 +282,7 @@ class SearchAggregatorService
             $enrichedProspect = $prospect;
             
             try {
-                // Enrichissement via Clearbit si on a un domaine
-                if (!empty($prospect['domain'])) {
-                    $clearbitData = $this->clearbitService->enrichCompany($prospect['domain']);
-                    if ($clearbitData) {
-                        $enrichedProspect = $this->mergeProspectData($enrichedProspect, $clearbitData);
-                    }
-                }
+                // Enrichissement désactivé (Clearbit supprimé)
                 
                 // Enrichissement via Hunter si on a un domaine
                 if (!empty($prospect['domain'])) {
@@ -336,12 +322,6 @@ class SearchAggregatorService
                 'available' => $this->nominatimService->isConfigured(),
                 'description' => 'Données géographiques publiques',
                 'type' => 'geographic'
-            ],
-            'clearbit' => [
-                'name' => 'Clearbit',
-                'available' => $this->clearbitService->isConfigured(),
-                'description' => 'Enrichissement données entreprises',
-                'type' => 'enrichment'
             ],
             'hunter' => [
                 'name' => 'Hunter.io',

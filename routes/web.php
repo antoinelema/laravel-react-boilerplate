@@ -33,12 +33,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     
-    // Routes prospects
+    // Routes prospects - recherche ouverte à tous les utilisateurs authentifiés
     Route::get('/prospects/search', function () {
         return Inertia::render('ProspectSearch');
     });
     
-    Route::get('/prospects', function () {
-        return Inertia::render('ProspectDashboard');
+    // Routes prospects premium uniquement
+    Route::middleware('premium')->group(function () {
+        Route::get('/prospects', function () {
+            return Inertia::render('ProspectDashboard');
+        });
     });
+});
+
+// Page d'upgrade pour utilisateurs gratuits
+Route::middleware('auth')->get('/upgrade', function () {
+    return Inertia::render('UpgradePage');
 });

@@ -33,6 +33,10 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'subscription_type' => 'free',
+            'subscription_expires_at' => null,
+            'daily_searches_count' => 0,
+            'daily_searches_reset_at' => null,
         ];
     }
 

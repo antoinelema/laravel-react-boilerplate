@@ -52,10 +52,6 @@ return [
         'user_agent' => env('NOMINATIM_USER_AGENT', 'Prospecto/1.0'),
     ],
 
-    'clearbit' => [
-        'api_key' => env('CLEARBIT_API_KEY'),
-        'base_url' => env('CLEARBIT_BASE_URL', 'https://company.clearbit.com/v2'),
-    ],
 
     'hunter' => [
         'api_key' => env('HUNTER_API_KEY'),

@@ -20,11 +20,16 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     
     // Recherche de prospects via APIs externes
     Route::prefix('prospects')->group(function () {
-        // Recherche externe
-        Route::post('search', [ProspectSearchController::class, 'search']);
-        Route::get('sources', [ProspectSearchController::class, 'sources']);
+        // Recherche externe avec limitation pour les utilisateurs gratuits
+        Route::middleware(['search.limit'])->post('search', [ProspectSearchController::class, 'search']);
         
-        // CRUD prospects
+        // Routes publiques (pas de limitation premium)
+        Route::get('sources', [ProspectSearchController::class, 'sources']);
+        Route::get('quota', [ProspectSearchController::class, 'quota']);
+    });
+
+    // Routes Premium uniquement - CRUD prospects
+    Route::middleware(['premium'])->prefix('prospects')->group(function () {
         Route::get('/', [ProspectController::class, 'index']);
         Route::post('/', [ProspectController::class, 'store']);
         Route::get('{id}', [ProspectController::class, 'show']);
@@ -35,8 +40,8 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::get('search/local', [ProspectController::class, 'search']);
     });
     
-    // Notes de prospects
-    Route::prefix('prospects/{prospectId}/notes')->group(function () {
+    // Notes de prospects - Premium uniquement
+    Route::middleware(['premium'])->prefix('prospects/{prospectId}/notes')->group(function () {
         Route::get('/', [ProspectNoteController::class, 'index']);
         Route::post('/', [ProspectNoteController::class, 'store']);
         Route::put('{noteId}', [ProspectNoteController::class, 'update']);

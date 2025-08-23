@@ -4,6 +4,7 @@ namespace App\__Application__\Http\Controllers\Api;
 
 use App\__Application__\Http\Requests\ProspectSearchRequest;
 use App\__Infrastructure__\Services\Aggregation\SearchAggregatorService;
+use App\__Infrastructure__\Services\User\SearchQuotaService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -15,10 +16,14 @@ use Illuminate\Support\Facades\Log;
 class ProspectSearchController extends Controller
 {
     private SearchAggregatorService $searchAggregator;
+    private SearchQuotaService $searchQuotaService;
 
-    public function __construct(SearchAggregatorService $searchAggregator)
-    {
+    public function __construct(
+        SearchAggregatorService $searchAggregator,
+        SearchQuotaService $searchQuotaService
+    ) {
         $this->searchAggregator = $searchAggregator;
+        $this->searchQuotaService = $searchQuotaService;
     }
 
     /**
@@ -26,13 +31,14 @@ class ProspectSearchController extends Controller
      */
     public function search(ProspectSearchRequest $request): JsonResponse
     {
-        $userId = Auth::id();
+        $user = Auth::user();
         
         try {
             Log::info('Nouvelle recherche agrégée de prospects', [
-                'user_id' => $userId,
+                'user_id' => $user->id,
                 'query' => $request->getQuery(),
-                'sources' => $request->getSources()
+                'sources' => $request->getSources(),
+                'is_premium' => $user->isPremium()
             ]);
             
             // Effectuer la recherche agrégée
@@ -53,12 +59,18 @@ class ProspectSearchController extends Controller
                     ]
                 ], 500);
             }
+
+            // Consommer le quota de recherche APRÈS une recherche réussie
+            $this->searchQuotaService->consumeSearchQuota($user);
             
             // Sauvegarder la recherche si demandé
             $searchRecord = null;
             if ($request->shouldSaveSearch()) {
-                $searchRecord = $this->saveSearchRecord($userId, $request, $searchResult);
+                $searchRecord = $this->saveSearchRecord($user->id, $request, $searchResult);
             }
+
+            // Obtenir les informations de quota pour la réponse
+            $quotaInfo = $this->searchQuotaService->getQuotaInfo($user);
             
             // Formater la réponse
             return response()->json([
@@ -71,13 +83,14 @@ class ProspectSearchController extends Controller
                     'sources_stats' => $searchResult['search_stats'],
                     'deduplication_info' => $searchResult['deduplication_info'],
                     'available_sources' => $this->searchAggregator->getAvailableSources(),
-                    'cache_info' => $searchResult['cache_info'] ?? null
+                    'cache_info' => $searchResult['cache_info'] ?? null,
+                    'quota_info' => $quotaInfo
                 ],
             ]);
             
         } catch (\Exception $e) {
             Log::error('Erreur lors de la recherche agrégée', [
-                'user_id' => $userId,
+                'user_id' => $user->id,
                 'query' => $request->getQuery(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -89,6 +102,37 @@ class ProspectSearchController extends Controller
                 'data' => [
                     'prospects' => [],
                     'total_found' => 0
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtient les informations de quota de l'utilisateur
+     */
+    public function quota(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            $quotaInfo = $this->searchQuotaService->getQuotaInfo($user);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'quota_info' => $quotaInfo,
+                ],
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des informations de quota', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des informations de quota',
+                'data' => [
+                    'quota_info' => [],
                 ]
             ], 500);
         }

@@ -24,6 +24,14 @@ class NominatimService
     /**
      * Recherche des lieux/entreprises selon des critères géographiques
      */
+    public function searchPlaces(string $query, array $filters = []): array
+    {
+        return $this->search($query, $filters);
+    }
+
+    /**
+     * Recherche des lieux/entreprises selon des critères géographiques
+     */
     public function search(string $query, array $filters = []): array
     {
         // Mode démo si activé
@@ -120,8 +128,8 @@ class NominatimService
             $params['countrycodes'] = 'fr';
         }
 
-        // Filtrer par type d'établissement commercial
-        $params['q'] .= ' shop OR amenity OR office OR craft';
+        // Note: La recherche OSM est plus sensible aux requêtes complexes
+        // On laisse la requête de base simple pour de meilleurs résultats
 
         return $params;
     }

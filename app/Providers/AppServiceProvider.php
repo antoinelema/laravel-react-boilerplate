@@ -16,11 +16,12 @@ use App\__Infrastructure__\Persistence\ProspectNote\ProspectNoteRepository;
 use App\__Infrastructure__\Persistence\ProspectSearch\ProspectSearchRepository;
 use App\__Infrastructure__\Services\External\GoogleMapsService;
 use App\__Infrastructure__\Services\External\NominatimService;
-use App\__Infrastructure__\Services\External\ClearbitService;
 use App\__Infrastructure__\Services\External\HunterService;
 use App\__Infrastructure__\Services\Cache\ProspectSearchCacheService;
 use App\__Infrastructure__\Services\Aggregation\SearchAggregatorService;
 use App\__Infrastructure__\Services\Aggregation\ResultMergerService;
+use App\__Infrastructure__\Services\User\UserSubscriptionService;
+use App\__Infrastructure__\Services\User\SearchQuotaService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,7 +44,6 @@ class AppServiceProvider extends ServiceProvider
         // External services bindings
         $this->app->singleton(GoogleMapsService::class);
         $this->app->singleton(NominatimService::class);
-        $this->app->singleton(ClearbitService::class);
         $this->app->singleton(HunterService::class);
 
         // Cache service binding
@@ -52,6 +52,10 @@ class AppServiceProvider extends ServiceProvider
         // Aggregation services bindings
         $this->app->singleton(ResultMergerService::class);
         $this->app->singleton(SearchAggregatorService::class);
+
+        // User services bindings
+        $this->app->singleton(UserSubscriptionService::class);
+        $this->app->singleton(SearchQuotaService::class);
     }
 
     /**

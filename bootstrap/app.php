@@ -19,6 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append:[
             HandleInertiaRequests::class,
         ]);
+        
+        $middleware->alias([
+            'search.limit' => \App\Http\Middleware\SearchLimitMiddleware::class,
+            'premium' => \App\Http\Middleware\PremiumMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
