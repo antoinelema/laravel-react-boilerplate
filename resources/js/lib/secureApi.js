@@ -13,11 +13,29 @@ function hasWebSession() {
 
 // Secure API client that uses session-based authentication
 export const secureApiClient = {
+  async _ensureCsrfToken() {
+    // Initialize CSRF token if needed
+    if (!this._csrfInitialized) {
+      try {
+        await fetch('/sanctum/csrf-cookie', {
+          credentials: 'include'
+        });
+        this._csrfInitialized = true;
+      } catch (error) {
+        console.warn('Could not initialize CSRF token:', error);
+      }
+    }
+  },
+
   async request(url, options = {}) {
+    // Ensure CSRF token is initialized for SPA authentication
+    await this._ensureCsrfToken();
+
     const defaultHeaders = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
+      'Referer': window.location.origin,
     };
 
     // Add CSRF token for state-changing requests when using web session

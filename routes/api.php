@@ -5,6 +5,7 @@ use App\__Application__\Http\Controllers\Api\ProspectSearchController;
 use App\__Application__\Http\Controllers\Api\ProspectNoteController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
