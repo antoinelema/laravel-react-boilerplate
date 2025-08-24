@@ -140,8 +140,30 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => 'required|string|min:2',
             'firstname' => 'required|string|min:2',
+            'current_password' => 'nullable|string',
             'password' => 'nullable|string|min:8|confirmed',
         ]);
+
+        // Si un nouveau mot de passe est fourni, vérifier l'ancien
+        if (!empty($data['password'])) {
+            if (empty($data['current_password'])) {
+                return response()->json([
+                    'message' => 'Le mot de passe actuel est requis pour changer le mot de passe.',
+                    'errors' => [
+                        'current_password' => ['Le mot de passe actuel est requis.']
+                    ]
+                ], 422);
+            }
+
+            if (!Hash::check($data['current_password'], $eloquentUser->password)) {
+                return response()->json([
+                    'message' => 'Le mot de passe actuel est incorrect.',
+                    'errors' => [
+                        'current_password' => ['Le mot de passe actuel est incorrect.']
+                    ]
+                ], 422);
+            }
+        }
         $eloquentUser->name = $data['name'];
         $eloquentUser->firstname = $data['firstname'];
         if (!empty($data['password'])) {

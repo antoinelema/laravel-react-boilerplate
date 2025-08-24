@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\UserEloquent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class UserApiAuthTest extends TestCase
@@ -69,9 +70,7 @@ class UserApiAuthTest extends TestCase
 
         $response = $this->putJson('/profile', [
             'name' => 'New',
-            'firstname' => 'Name',
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123'
+            'firstname' => 'Name'
         ]);
 
         $response->assertStatus(200);
@@ -79,7 +78,7 @@ class UserApiAuthTest extends TestCase
             'message' => 'Profil mis à jour'
         ]);
 
-        // Vérifier que les données ont été mises à jour
+        // Vérifier que les données ont été mises à jour (mais pas le mot de passe)
         $user->refresh();
         $this->assertEquals('New', $user->name);
         $this->assertEquals('Name', $user->firstname);
@@ -109,5 +108,88 @@ class UserApiAuthTest extends TestCase
         $response->assertJson([
             'email' => 'session@example.com'
         ]);
+    }
+
+    public function test_password_change_requires_current_password()
+    {
+        $user = UserEloquent::create([
+            'name' => 'Password',
+            'firstname' => 'User',
+            'email' => 'password@example.com',
+            'password' => bcrypt('oldpassword'),
+            'role' => 'user',
+            'subscription_type' => 'free'
+        ]);
+
+        $this->actingAs($user);
+
+        // Test sans current_password
+        $response = $this->putJson('/profile', [
+            'name' => 'Password',
+            'firstname' => 'User',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123'
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['current_password']);
+    }
+
+    public function test_password_change_validates_current_password()
+    {
+        $user = UserEloquent::create([
+            'name' => 'Password',
+            'firstname' => 'User',
+            'email' => 'password2@example.com',
+            'password' => bcrypt('oldpassword'),
+            'role' => 'user',
+            'subscription_type' => 'free'
+        ]);
+
+        $this->actingAs($user);
+
+        // Test avec mauvais current_password
+        $response = $this->putJson('/profile', [
+            'name' => 'Password',
+            'firstname' => 'User',
+            'current_password' => 'wrongpassword',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123'
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['current_password']);
+    }
+
+    public function test_password_change_works_with_correct_current_password()
+    {
+        $user = UserEloquent::create([
+            'name' => 'Password',
+            'firstname' => 'User',
+            'email' => 'password3@example.com',
+            'password' => bcrypt('oldpassword'),
+            'role' => 'user',
+            'subscription_type' => 'free'
+        ]);
+
+        $this->actingAs($user);
+
+        // Test avec bon current_password
+        $response = $this->putJson('/profile', [
+            'name' => 'Password',
+            'firstname' => 'User',
+            'current_password' => 'oldpassword',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123'
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'message' => 'Profil mis à jour'
+        ]);
+
+        // Vérifier que le mot de passe a été changé
+        $user->refresh();
+        $this->assertTrue(Hash::check('newpassword123', $user->password));
     }
 }
