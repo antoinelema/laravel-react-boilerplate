@@ -42,7 +42,12 @@ export default function ProspectSearch() {
             const data = await apiClient.get('/api/v1/prospects/sources')
             setAvailableSources(data.data.sources)
         } catch (error) {
-            toast.error('Impossible de charger les sources disponibles')
+            // Ne pas afficher d'erreur si c'est un problème d'authentification
+            // Les sources par défaut seront utilisées
+            if (!error.message.includes('Session expirée') && !error.message.includes('401')) {
+                toast.error('Impossible de charger les sources disponibles')
+            }
+            console.warn('Could not fetch available sources:', error.message)
         }
     }
 

@@ -75,8 +75,12 @@ export async function handleApiError(response, defaultMessage = 'Erreur inconnue
     message = 'Une erreur technique est survenue. Veuillez réessayer plus tard.';
   } else if (response.status === 401) {
     message = 'Session expirée. Veuillez vous reconnecter.';
-    // Optionally redirect to login page
-    // window.location.href = '/login';
+    // Reset CSRF initialization flag for retry
+    if (secureApiClient._csrfInitialized) {
+      secureApiClient._csrfInitialized = false;
+    }
+    // Optionally redirect to login page after a short delay
+    // setTimeout(() => window.location.href = '/login', 2000);
   } else if (response.status === 403) {
     message = 'Accès refusé. Vérifiez vos permissions.';
   } else if (response.status === 429) {

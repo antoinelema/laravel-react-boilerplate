@@ -20,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
         ]);
         
+        // Sanctum middleware for API
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+        
         $middleware->alias([
             'search.limit' => \App\Http\Middleware\SearchLimitMiddleware::class,
             'premium' => \App\Http\Middleware\PremiumMiddleware::class,
