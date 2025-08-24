@@ -5,7 +5,6 @@ namespace App\__Infrastructure__\Services\ProspectEnrichment;
 use App\__Domain__\Data\Prospect\Factory as ProspectFactory;
 use App\__Domain__\Data\Prospect\Model as ProspectModel;
 use App\__Infrastructure__\Services\External\GoogleMapsService;
-use App\__Infrastructure__\Services\External\PagesJaunesService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -13,14 +12,11 @@ use Illuminate\Support\Facades\Log;
  */
 class ProspectEnrichmentService
 {
-    private PagesJaunesService $pagesJaunesService;
     private GoogleMapsService $googleMapsService;
 
     public function __construct(
-        PagesJaunesService $pagesJaunesService,
         GoogleMapsService $googleMapsService
     ) {
-        $this->pagesJaunesService = $pagesJaunesService;
         $this->googleMapsService = $googleMapsService;
     }
 
@@ -30,12 +26,11 @@ class ProspectEnrichmentService
     public function searchProspects(int $userId, string $query, array $filters = [], array $sources = []): array
     {
         $allResults = [];
-        $enabledSources = empty($sources) ? ['pages_jaunes', 'google_maps'] : $sources;
+        $enabledSources = empty($sources) ? ['google_maps'] : $sources;
 
         foreach ($enabledSources as $source) {
             try {
                 $results = match ($source) {
-                    'pages_jaunes' => $this->searchFromPagesJaunes($query, $filters),
                     'google_maps' => $this->searchFromGoogleMaps($query, $filters),
                     default => []
                 };
@@ -77,13 +72,6 @@ class ProspectEnrichmentService
                 }
             }
 
-            // Tentative d'enrichissement via Pages Jaunes si on a le nom de l'entreprise
-            if (!empty($prospect->company) || !empty($prospect->name)) {
-                $enrichedData = $this->enrichFromPagesJaunes($prospect);
-                if ($enrichedData) {
-                    return $this->mergeEnrichmentData($prospect, $enrichedData);
-                }
-            }
 
         } catch (\Exception $e) {
             Log::error('Error enriching prospect', [
@@ -95,17 +83,6 @@ class ProspectEnrichmentService
         return $prospect;
     }
 
-    private function searchFromPagesJaunes(string $query, array $filters): array
-    {
-        $demoMode = config('app.external_services_demo_mode', true);
-        
-        if (!$demoMode && !$this->pagesJaunesService->isConfigured()) {
-            Log::warning('Pages Jaunes service not configured and demo mode disabled');
-            return [];
-        }
-
-        return $this->pagesJaunesService->search($query, $filters);
-    }
 
     private function searchFromGoogleMaps(string $query, array $filters): array
     {
@@ -135,20 +112,6 @@ class ProspectEnrichmentService
         return $results[0] ?? null;
     }
 
-    private function enrichFromPagesJaunes(ProspectModel $prospect): ?array
-    {
-        if (!$this->pagesJaunesService->isConfigured()) {
-            return null;
-        }
-
-        $searchQuery = $this->buildSearchQuery($prospect);
-        $results = $this->pagesJaunesService->search($searchQuery, [
-            'location' => $prospect->city
-        ]);
-
-        // Prendre le premier résultat qui correspond le mieux
-        return $results[0] ?? null;
-    }
 
     private function buildSearchQuery(ProspectModel $prospect): string
     {

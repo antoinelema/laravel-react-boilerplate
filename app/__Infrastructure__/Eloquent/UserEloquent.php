@@ -23,5 +23,44 @@ class UserEloquent extends Model implements AuthenticatableContract, Authorizabl
         'firstname',
         'email',
         'password',
+        'role',
+        'subscription_type',
     ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Check if user is admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Check if user has premium subscription
+     */
+    public function isPremium(): bool
+    {
+        return $this->subscription_type === 'premium';
+    }
+
+    /**
+     * Check if user has free subscription
+     */
+    public function isFree(): bool
+    {
+        return $this->subscription_type === 'free';
+    }
 }

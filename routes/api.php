@@ -34,6 +34,7 @@ Route::middleware(['auth:sanctum,web'])->prefix('v1')->group(function () {
     Route::middleware(['premium'])->prefix('prospects')->group(function () {
         Route::get('/', [ProspectController::class, 'index']);
         Route::post('/', [ProspectController::class, 'store']);
+        Route::post('bulk', [ProspectController::class, 'storeBulk']); // Sauvegarde en lot
         Route::get('{id}', [ProspectController::class, 'show']);
         Route::put('{id}', [ProspectController::class, 'update']);
         Route::delete('{id}', [ProspectController::class, 'destroy']);

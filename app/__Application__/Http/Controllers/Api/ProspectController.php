@@ -78,6 +78,124 @@ class ProspectController extends Controller
     }
 
     /**
+     * Sauvegarde plusieurs prospects en lot
+     */
+    public function storeBulk(Request $request): JsonResponse
+    {
+        $userId = Auth::id();
+        
+        // Validation des données d'entrée
+        $validated = $request->validate([
+            'prospects' => 'required|array|min:1|max:100', // Limite à 100 prospects
+            'prospects.*.name' => 'required|string|max:255',
+            'prospects.*.company' => 'nullable|string|max:255',
+            'prospects.*.sector' => 'nullable|string|max:255',
+            'prospects.*.city' => 'nullable|string|max:255',
+            'prospects.*.postal_code' => 'nullable|string|max:20',
+            'prospects.*.address' => 'nullable|string',
+            'prospects.*.contact_info' => 'nullable|array',
+            'prospects.*.phone' => 'nullable|string|max:50',
+            'prospects.*.email' => 'nullable|string|email|max:255',
+            'prospects.*.website' => 'nullable|string|max:255',
+            'prospects.*.description' => 'nullable|string',
+            'prospects.*.relevance_score' => 'nullable|numeric|min:0|max:100',
+            'prospects.*.source' => 'nullable|string|max:100',
+            'prospects.*.external_id' => 'nullable|string|max:255',
+            'search_id' => 'nullable|integer',
+        ]);
+
+        $results = [
+            'saved' => 0,
+            'exists' => 0, 
+            'errors' => 0,
+            'details' => []
+        ];
+
+        try {
+            // Use database transaction without explicit begin since tests might already have one active
+            DB::transaction(function () use ($validated, &$results, $userId) {
+
+            foreach ($validated['prospects'] as $index => $prospectData) {
+                try {
+                    // Normaliser les données de contact
+                    if (!isset($prospectData['contact_info']) || !is_array($prospectData['contact_info'])) {
+                        $prospectData['contact_info'] = [];
+                    }
+                    
+                    // Ajouter phone, email, website dans contact_info s'ils existent
+                    if (isset($prospectData['phone'])) {
+                        $prospectData['contact_info']['phone'] = $prospectData['phone'];
+                        unset($prospectData['phone']);
+                    }
+                    if (isset($prospectData['email'])) {
+                        $prospectData['contact_info']['email'] = $prospectData['email'];
+                        unset($prospectData['email']);
+                    }
+                    if (isset($prospectData['website'])) {
+                        $prospectData['contact_info']['website'] = $prospectData['website'];
+                        unset($prospectData['website']);
+                    }
+
+                    $input = SaveInput::fromData(
+                        $userId,
+                        $prospectData,
+                        $validated['search_id'] ?? null,
+                        null // note
+                    );
+
+                    $output = $this->getSaveHandler()->handle($input);
+
+                    if ($output->success) {
+                        if ($output->wasAlreadyExists) {
+                            $results['exists']++;
+                        } else {
+                            $results['saved']++;
+                        }
+                        
+                        $results['details'][] = [
+                            'index' => $index,
+                            'name' => $prospectData['name'],
+                            'status' => $output->wasAlreadyExists ? 'exists' : 'saved',
+                            'prospect_id' => $output->prospect->id
+                        ];
+                    } else {
+                        $results['errors']++;
+                        $results['details'][] = [
+                            'index' => $index,
+                            'name' => $prospectData['name'],
+                            'status' => 'error',
+                            'error' => $output->errorMessage
+                        ];
+                    }
+
+                } catch (\Exception $e) {
+                    $results['errors']++;
+                    $results['details'][] = [
+                        'index' => $index,
+                        'name' => $prospectData['name'] ?? 'Inconnu',
+                        'status' => 'error',
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => $this->getBulkSaveMessage($results),
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la sauvegarde en lot: ' . $e->getMessage(),
+                'data' => $results
+            ], 500);
+        }
+    }
+
+    /**
      * Sauvegarde un nouveau prospect
      */
     public function store(SaveProspectRequest $request): JsonResponse
@@ -248,6 +366,25 @@ class ProspectController extends Controller
         }
 
         return $filters;
+    }
+
+    private function getBulkSaveMessage(array $results): string
+    {
+        $messages = [];
+        
+        if ($results['saved'] > 0) {
+            $messages[] = "{$results['saved']} prospect(s) sauvegardé(s)";
+        }
+        
+        if ($results['exists'] > 0) {
+            $messages[] = "{$results['exists']} prospect(s) existaient déjà";
+        }
+        
+        if ($results['errors'] > 0) {
+            $messages[] = "{$results['errors']} erreur(s)";
+        }
+        
+        return implode(', ', $messages);
     }
 
     private function formatProspect(\App\__Domain__\Data\Prospect\Model $prospect): array

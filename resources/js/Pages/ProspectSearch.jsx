@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Search, MapPin, Phone, Mail, Globe, Star, MessageSquare, Users, Building2, Database, TrendingUp, Copy, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Loader2, Search, MapPin, Phone, Mail, Globe, Star, MessageSquare, Users, Building2, Database, TrendingUp, Copy, CheckCircle, AlertTriangle, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { secureApiClient as apiClient } from '@/lib/secureApi'
 
@@ -31,6 +31,8 @@ export default function ProspectSearch() {
     const [duplicatesFound, setDuplicatesFound] = useState([])
     const [deduplicationInfo, setDeduplicationInfo] = useState(null)
     const [showDuplicates, setShowDuplicates] = useState(false)
+    const [selectedProspects, setSelectedProspects] = useState(new Set())
+    const [isSavingSelection, setIsSavingSelection] = useState(false)
 
     // Charger les sources disponibles au montage
     useEffect(() => {
@@ -61,6 +63,7 @@ export default function ProspectSearch() {
 
         setIsSearching(true)
         setSearchResults([])
+        setSelectedProspects(new Set()) // Reset selection when new search
 
         try {
             // Nettoyer les données avant envoi
@@ -106,32 +109,56 @@ export default function ProspectSearch() {
         }
     }
 
-    const handleSaveProspect = async (prospect, note = '') => {
+    const handleSaveProspects = async (prospects, notes = {}) => {
+        const prospectsToSave = Array.isArray(prospects) ? prospects : [prospects]
+        
         try {
-            const data = await apiClient.post('/api/v1/prospects', {
-                name: prospect.name,
-                company: prospect.company,
-                sector: prospect.sector,
-                city: prospect.city,
-                postal_code: prospect.postal_code,
-                address: prospect.address,
-                contact_info: prospect.contact_info,
-                description: prospect.description,
-                relevance_score: prospect.relevance_score,
-                source: prospect.source,
-                external_id: prospect.external_id,
-                search_id: searchStats?.search?.id,
-                note: note.trim() || null
-            })
-            
-            if (data.data.was_already_exists) {
-                toast.info('Ce prospect existe déjà dans votre base')
-            } else {
-                toast.success('Prospect sauvegardé avec succès')
+            // Préparer les données pour l'API bulk
+            const bulkData = {
+                prospects: prospectsToSave.map(prospect => {
+                    // Normaliser le relevance_score
+                    let relevanceScore = 0
+                    if (typeof prospect.relevance_score === 'number') {
+                        relevanceScore = prospect.relevance_score
+                    } else if (typeof prospect.relevance_score === 'object' && prospect.relevance_score) {
+                        relevanceScore = prospect.relevance_score.total || prospect.relevance_score.score || 0
+                    } else if (typeof prospect.relevance_score === 'string') {
+                        relevanceScore = parseFloat(prospect.relevance_score) || 0
+                    }
+
+                    return {
+                        name: prospect.name,
+                        company: prospect.company,
+                        sector: prospect.sector,
+                        city: prospect.city,
+                        postal_code: prospect.postal_code,
+                        address: prospect.address,
+                        contact_info: prospect.contact_info,
+                        phone: prospect.phone,
+                        email: prospect.email,
+                        website: prospect.website,
+                        description: prospect.description,
+                        relevance_score: relevanceScore,
+                        source: prospect.source,
+                        external_id: prospect.external_id,
+                    }
+                }),
+                // Normaliser le search_id
+                search_id: searchStats?.search?.id ? parseInt(searchStats.search.id) : null
             }
 
+            // Une seule requête API pour tous les prospects
+            const response = await apiClient.post('/api/v1/prospects/bulk', bulkData)
+            
+            // Afficher le message de résumé depuis le backend
+            if (response.success) {
+                toast.success(response.message)
+            } else {
+                toast.error(response.message || 'Erreur lors de la sauvegarde')
+            }
+            
         } catch (error) {
-            toast.error(error.message || 'Erreur lors de la sauvegarde')
+            toast.error(error.message || 'Erreur lors de la sauvegarde multiple')
         }
     }
 
@@ -150,6 +177,44 @@ export default function ProspectSearch() {
                 ...prev,
                 [field]: value
             }))
+        }
+    }
+
+    const handleSelectProspect = (prospectId, isSelected) => {
+        setSelectedProspects(prev => {
+            const newSet = new Set(prev)
+            if (isSelected) {
+                newSet.add(prospectId)
+            } else {
+                newSet.delete(prospectId)
+            }
+            return newSet
+        })
+    }
+
+    const handleSelectAll = () => {
+        if (selectedProspects.size === searchResults.length) {
+            // Deselect all
+            setSelectedProspects(new Set())
+        } else {
+            // Select all
+            setSelectedProspects(new Set(searchResults.map(p => p.external_id)))
+        }
+    }
+
+    const handleSaveSelection = async () => {
+        if (selectedProspects.size === 0) {
+            toast.error('Aucun prospect sélectionné')
+            return
+        }
+
+        setIsSavingSelection(true)
+        try {
+            const prospectsToSave = searchResults.filter(p => selectedProspects.has(p.external_id))
+            await handleSaveProspects(prospectsToSave)
+            setSelectedProspects(new Set()) // Clear selection after save
+        } finally {
+            setIsSavingSelection(false)
         }
     }
 
@@ -478,6 +543,50 @@ export default function ProspectSearch() {
                     </Card>
                 )}
 
+                {/* Actions de sélection */}
+                {searchResults.length > 0 && (
+                    <Card className="mb-6">
+                        <CardContent className="pt-4">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleSelectAll}
+                                        className="text-sm"
+                                    >
+                                        <Check className="mr-2 h-4 w-4" />
+                                        {selectedProspects.size === searchResults.length 
+                                            ? 'Désélectionner tout' 
+                                            : 'Sélectionner tout'
+                                        }
+                                    </Button>
+                                    <span className="text-sm text-gray-600">
+                                        {selectedProspects.size} sur {searchResults.length} sélectionné(s)
+                                    </span>
+                                </div>
+                                
+                                {selectedProspects.size > 0 && (
+                                    <Button
+                                        onClick={handleSaveSelection}
+                                        disabled={isSavingSelection}
+                                        className="text-sm"
+                                    >
+                                        {isSavingSelection ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Sauvegarde...
+                                            </>
+                                        ) : (
+                                            `Sauvegarder la sélection (${selectedProspects.size})`
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Résultats de recherche */}
                 {searchResults.length > 0 && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -485,7 +594,8 @@ export default function ProspectSearch() {
                             <ProspectCard
                                 key={`${prospect.external_id}-${index}`}
                                 prospect={prospect}
-                                onSave={(note) => handleSaveProspect(prospect, note)}
+                                isSelected={selectedProspects.has(prospect.external_id)}
+                                onSelect={(isSelected) => handleSelectProspect(prospect.external_id, isSelected)}
                             />
                         ))}
                     </div>
@@ -511,31 +621,25 @@ export default function ProspectSearch() {
     )
 }
 
-function ProspectCard({ prospect, onSave }) {
-    const [isSaving, setIsSaving] = useState(false)
-    const [note, setNote] = useState('')
-    const [showNoteField, setShowNoteField] = useState(false)
-
-    const handleSave = async () => {
-        setIsSaving(true)
-        try {
-            await onSave(note)
-            setNote('')
-            setShowNoteField(false)
-        } finally {
-            setIsSaving(false)
-        }
-    }
+function ProspectCard({ prospect, isSelected, onSelect }) {
 
     return (
         <Card className="h-full">
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                        <CardTitle className="text-lg mb-1">{prospect.name}</CardTitle>
-                        {prospect.company && (
-                            <CardDescription>{prospect.company}</CardDescription>
-                        )}
+                    <div className="flex items-start gap-3 flex-1">
+                        <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => onSelect(e.target.checked)}
+                            className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <div className="flex-1">
+                            <CardTitle className="text-lg mb-1">{prospect.name}</CardTitle>
+                            {prospect.company && (
+                                <CardDescription>{prospect.company}</CardDescription>
+                            )}
+                        </div>
                     </div>
                     <div className="flex items-center gap-1 ml-2">
                         <Star className="h-4 w-4 text-yellow-500 fill-current" />
@@ -667,54 +771,11 @@ function ProspectCard({ prospect, onSave }) {
                     </div>
                 )}
 
-                {/* Note optionnelle */}
-                {showNoteField && (
-                    <div className="space-y-2 pt-2 border-t">
-                        <Label htmlFor={`note-${prospect.external_id}`} className="text-xs">
-                            Note (optionnelle)
-                        </Label>
-                        <Textarea
-                            id={`note-${prospect.external_id}`}
-                            placeholder="Ajoutez une note sur ce prospect..."
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                            rows={2}
-                            className="text-xs"
-                        />
-                    </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center justify-between pt-2 border-t">
+                {/* Source */}
+                <div className="pt-2 border-t">
                     <Badge variant="outline" className="text-xs">
                         Source: {typeof prospect.source === 'object' ? (prospect.source?.name || 'Inconnu') : (prospect.source || 'Inconnu')}
                     </Badge>
-                    
-                    <div className="flex gap-1">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowNoteField(!showNoteField)}
-                            className="text-xs px-2"
-                        >
-                            <MessageSquare className="h-3 w-3" />
-                        </Button>
-                        
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            size="sm"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                    Sauvegarde...
-                                </>
-                            ) : (
-                                'Sauvegarder'
-                            )}
-                        </Button>
-                    </div>
                 </div>
             </CardContent>
         </Card>
