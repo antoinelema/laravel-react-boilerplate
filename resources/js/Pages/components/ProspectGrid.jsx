@@ -5,7 +5,7 @@ import { ProspectCard } from './ProspectCard'
 export function ProspectGrid({ prospects, categories, onDeleteProspect, onProspectUpdate }) {
     return (
         <TooltipProvider>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {prospects.map((prospect) => (
                     <ProspectCard
                         key={prospect.id}

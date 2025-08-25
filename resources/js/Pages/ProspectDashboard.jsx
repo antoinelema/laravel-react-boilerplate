@@ -38,29 +38,18 @@ export default function ProspectDashboard() {
 
     useEffect(() => {
         applyFilters()
-    }, [searchTerm, filters, prospects])
+    }, [searchTerm, filters, prospects, activeCategoryId])
 
     useEffect(() => {
-        fetchProspects()
-    }, [activeCategoryId])
+        if (prospects.length > 0) {
+            calculateStats(prospects)
+        }
+    }, [activeCategoryId, prospects])
 
     const fetchProspects = async () => {
         setIsLoading(true)
         try {
-            let url = '/api/v1/prospects'
-            const params = new URLSearchParams()
-            
-            if (activeCategoryId) {
-                params.append('category_id', activeCategoryId)
-            } else if (activeCategoryId === 0) {
-                params.append('without_category', 'true')
-            }
-            
-            if (params.toString()) {
-                url += '?' + params.toString()
-            }
-            
-            const data = await secureApiClient.get(url)
+            const data = await secureApiClient.get('/api/v1/prospects')
             setProspects(data.data.prospects)
             calculateStats(data.data.prospects)
         } catch (error) {
@@ -79,13 +68,39 @@ export default function ProspectDashboard() {
         }
     }
 
+    const getCategoriesWithCounts = () => {
+        return categories.map(category => ({
+            ...category,
+            prospects_count: prospects.filter(prospect => 
+                prospect.categories && 
+                prospect.categories.some(cat => cat.id === category.id)
+            ).length
+        }))
+    }
+
+    const getProspectsByCategory = (prospectsData) => {
+        if (activeCategoryId === null) {
+            return prospectsData
+        } else if (activeCategoryId === 0) {
+            return prospectsData.filter(prospect => 
+                !prospect.categories || prospect.categories.length === 0
+            )
+        } else {
+            return prospectsData.filter(prospect => 
+                prospect.categories && 
+                prospect.categories.some(cat => cat.id === activeCategoryId)
+            )
+        }
+    }
+
     const calculateStats = (prospectsData) => {
-        const total = prospectsData.length
+        const categoryFiltered = getProspectsByCategory(prospectsData)
+        const total = categoryFiltered.length
         const byStatus = {}
         const bySector = {}
         let totalScore = 0
 
-        prospectsData.forEach(prospect => {
+        categoryFiltered.forEach(prospect => {
             byStatus[prospect.status] = (byStatus[prospect.status] || 0) + 1
             if (prospect.sector) {
                 bySector[prospect.sector] = (bySector[prospect.sector] || 0) + 1
@@ -104,6 +119,23 @@ export default function ProspectDashboard() {
     const applyFilters = () => {
         let filtered = [...prospects]
 
+        // Filtre par catégorie
+        if (activeCategoryId !== null) {
+            if (activeCategoryId === 0) {
+                // "Sans catégorie" - prospects sans catégories
+                filtered = filtered.filter(prospect => 
+                    !prospect.categories || prospect.categories.length === 0
+                )
+            } else {
+                // Catégorie spécifique
+                filtered = filtered.filter(prospect => 
+                    prospect.categories && 
+                    prospect.categories.some(cat => cat.id === activeCategoryId)
+                )
+            }
+        }
+
+        // Filtre par terme de recherche
         if (searchTerm) {
             const term = searchTerm.toLowerCase()
             filtered = filtered.filter(prospect =>
@@ -114,6 +146,7 @@ export default function ProspectDashboard() {
             )
         }
 
+        // Autres filtres
         if (filters.status) {
             filtered = filtered.filter(prospect => prospect.status === filters.status)
         }
@@ -182,7 +215,7 @@ export default function ProspectDashboard() {
         return (
             <Layout>
                 <Head title="Mes Prospects" />
-                <div className="container mx-auto px-4 py-6">
+                <div className="w-full px-6 py-6">
                     <div className="flex items-center justify-center h-64">
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -198,7 +231,7 @@ export default function ProspectDashboard() {
         <Layout>
             <Head title="Mes Prospects" />
             
-            <div className="container mx-auto px-4 py-6">
+            <div className="w-full px-6 py-6">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">Mes Prospects</h1>
@@ -214,7 +247,7 @@ export default function ProspectDashboard() {
                 </div>
 
                 <CategoryTabs 
-                    categories={categories}
+                    categories={getCategoriesWithCounts()}
                     activeCategoryId={activeCategoryId}
                     onCategoryChange={setActiveCategoryId}
                     onCategoriesUpdate={setCategories}
@@ -237,7 +270,7 @@ export default function ProspectDashboard() {
                 {filteredProspects.length > 0 ? (
                     <ProspectGrid 
                         prospects={filteredProspects}
-                        categories={categories}
+                        categories={getCategoriesWithCounts()}
                         onDeleteProspect={handleDeleteProspect}
                         onProspectUpdate={handleProspectUpdate}
                     />

@@ -119,13 +119,13 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
     }
 
     return (
-        <Card className="h-full">
+        <Card className="h-full flex flex-col">
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                        <CardTitle className="text-lg mb-1">{prospect.name}</CardTitle>
+                    <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg mb-1 break-words">{prospect.name}</CardTitle>
                         {prospect.company && (
-                            <CardDescription>{prospect.company}</CardDescription>
+                            <CardDescription className="break-words">{prospect.company}</CardDescription>
                         )}
                     </div>
                     <div className="flex items-center gap-1 ml-2">
@@ -170,7 +170,8 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
                 )}
             </CardHeader>
             
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 flex-1 flex flex-col">
+                <div className="flex-1 space-y-3">
                 {(prospect.city || prospect.address) && (
                     <div className="flex items-start gap-2">
                         <MapPin className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
@@ -201,11 +202,11 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
                         )}
                         
                         {prospect.contact_info.email && (
-                            <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4 text-gray-500" />
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
                                 <a
                                     href={`mailto:${prospect.contact_info.email}`}
-                                    className="text-sm text-blue-600 hover:underline"
+                                    className="text-sm text-blue-600 hover:underline break-all"
                                 >
                                     {prospect.contact_info.email}
                                 </a>
@@ -213,13 +214,13 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
                         )}
                         
                         {prospect.contact_info.website && (
-                            <div className="flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-gray-500" />
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Globe className="h-4 w-4 text-gray-500 flex-shrink-0" />
                                 <a
                                     href={prospect.contact_info.website}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 hover:underline truncate"
+                                    className="text-sm text-blue-600 hover:underline break-all"
                                 >
                                     {prospect.contact_info.website}
                                 </a>
@@ -254,6 +255,7 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
                         )}
                     </div>
                 )}
+                </div>
 
                 <div className="flex items-center justify-between pt-2 border-t">
                     <div className="text-xs text-gray-500">
