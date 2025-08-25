@@ -5,7 +5,7 @@ namespace Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\__Infrastructure__\Eloquent\UserEloquent>
@@ -17,7 +17,7 @@ class UserFactory extends Factory
      */
     protected static ?string $password;
 
-    protected $model = User::class;
+    protected $model = UserEloquent::class;
 
     /**
      * Define the model's default state.

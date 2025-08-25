@@ -10,6 +10,8 @@ import { ProspectFilters } from './components/ProspectFilters'
 import { CategoryTabs } from './components/CategoryTabs'
 import { ProspectGrid } from './components/ProspectGrid'
 import { EmptyState } from './components/EmptyState'
+import { BulkEnrichmentButton } from './components/EnrichmentButton'
+import { useEnrichmentStats } from '../hooks/useEnrichmentEligibility'
 
 export default function ProspectDashboard() {
     const [prospects, setProspects] = useState([])
@@ -20,7 +22,9 @@ export default function ProspectDashboard() {
         status: '',
         sector: '',
         city: '',
-        min_score: ''
+        min_score: '',
+        enrichment_status: '',
+        enrichment_eligibility: ''
     })
     const [stats, setStats] = useState({
         total: 0,
@@ -30,6 +34,10 @@ export default function ProspectDashboard() {
     })
     const [categories, setCategories] = useState([])
     const [activeCategoryId, setActiveCategoryId] = useState(null)
+    const [selectedProspects, setSelectedProspects] = useState([])
+    
+    // Hook d'enrichissement pour les statistiques
+    const enrichmentStats = useEnrichmentStats()
 
     useEffect(() => {
         fetchCategories()
@@ -163,6 +171,61 @@ export default function ProspectDashboard() {
             filtered = filtered.filter(prospect => prospect.relevance_score >= parseInt(filters.min_score))
         }
 
+        // Filtres d'enrichissement
+        if (filters.enrichment_status) {
+            filtered = filtered.filter(prospect => {
+                switch (filters.enrichment_status) {
+                    case 'never_enriched':
+                        return !prospect.last_enrichment_at
+                    case 'recently_enriched':
+                        if (!prospect.last_enrichment_at) return false
+                        const enrichedAt = new Date(prospect.last_enrichment_at)
+                        const thirtyDaysAgo = new Date()
+                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+                        return enrichedAt > thirtyDaysAgo
+                    case 'needs_refresh':
+                        if (!prospect.last_enrichment_at) return true
+                        const lastEnriched = new Date(prospect.last_enrichment_at)
+                        const ninetyDaysAgo = new Date()
+                        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+                        return lastEnriched < ninetyDaysAgo
+                    case 'complete_data':
+                        return prospect.data_completeness_score >= 80
+                    case 'incomplete_data':
+                        return prospect.data_completeness_score < 80
+                    case 'has_contacts':
+                        return prospect.email && prospect.telephone
+                    case 'missing_contacts':
+                        return !prospect.email || !prospect.telephone
+                    default:
+                        return true
+                }
+            })
+        }
+
+        if (filters.enrichment_eligibility) {
+            // Ce filtre nécessiterait d'appeler l'API d'éligibilité pour chaque prospect
+            // Pour l'instant, on fait un filtrage basique
+            filtered = filtered.filter(prospect => {
+                switch (filters.enrichment_eligibility) {
+                    case 'eligible':
+                        return !prospect.enrichment_blacklisted_at && 
+                               prospect.auto_enrich_enabled !== false &&
+                               (!prospect.last_enrichment_at || 
+                                new Date(prospect.last_enrichment_at) < new Date(Date.now() - 30*24*60*60*1000))
+                    case 'not_eligible':
+                        return prospect.enrichment_blacklisted_at || 
+                               prospect.auto_enrich_enabled === false ||
+                               (prospect.last_enrichment_at && 
+                                new Date(prospect.last_enrichment_at) >= new Date(Date.now() - 30*24*60*60*1000))
+                    case 'blacklisted':
+                        return prospect.enrichment_blacklisted_at
+                    default:
+                        return true
+                }
+            })
+        }
+
         setFilteredProspects(filtered)
     }
 
@@ -199,7 +262,9 @@ export default function ProspectDashboard() {
             status: '',
             sector: '',
             city: '',
-            min_score: ''
+            min_score: '',
+            enrichment_status: '',
+            enrichment_eligibility: ''
         })
     }
 
@@ -209,6 +274,26 @@ export default function ProspectDashboard() {
             .filter(value => value && value.trim())
             .filter((value, index, self) => self.indexOf(value) === index)
             .sort()
+    }
+
+    const handleBulkEnrichmentComplete = (prospects, results) => {
+        toast.success(`Enrichissement terminé : ${results.processed?.length || 0} prospects traités`)
+        // Rafraîchir la liste des prospects
+        fetchProspects()
+        // Désélectionner les prospects
+        setSelectedProspects([])
+        // Rafraîchir les stats d'enrichissement
+        enrichmentStats.refresh()
+    }
+
+    const handleBulkEnrichmentStart = (prospects) => {
+        toast.info(`Démarrage de l'enrichissement pour ${prospects.length} prospects...`)
+    }
+
+    const handleProspectSelectionChange = (selectedIds) => {
+        setSelectedProspects(
+            prospects.filter(prospect => selectedIds.includes(prospect.id))
+        )
     }
 
     if (isLoading) {
@@ -265,7 +350,31 @@ export default function ProspectDashboard() {
                     prospects={prospects}
                     filteredCount={filteredProspects.length}
                     getUniqueValues={getUniqueValues}
+                    enrichmentStats={enrichmentStats}
                 />
+
+                {selectedProspects.length > 0 && (
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                                <span className="text-sm font-medium text-blue-900">
+                                    {selectedProspects.length} prospect{selectedProspects.length > 1 ? 's' : ''} sélectionné{selectedProspects.length > 1 ? 's' : ''}
+                                </span>
+                                <button
+                                    onClick={() => setSelectedProspects([])}
+                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    Désélectionner tout
+                                </button>
+                            </div>
+                            <BulkEnrichmentButton
+                                selectedProspects={selectedProspects}
+                                onBulkEnrichmentComplete={handleBulkEnrichmentComplete}
+                                onBulkEnrichmentStart={handleBulkEnrichmentStart}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {filteredProspects.length > 0 ? (
                     <ProspectGrid 
@@ -273,6 +382,9 @@ export default function ProspectDashboard() {
                         categories={getCategoriesWithCounts()}
                         onDeleteProspect={handleDeleteProspect}
                         onProspectUpdate={handleProspectUpdate}
+                        selectedProspects={selectedProspects}
+                        onSelectionChange={handleProspectSelectionChange}
+                        showEnrichment={true}
                     />
                 ) : (
                     <EmptyState 

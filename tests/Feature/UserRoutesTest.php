@@ -46,6 +46,7 @@ class UserRoutesTest extends TestCase
             'firstname' => 'Firstname',
             'password' => 'newpassword',
             'password_confirmation' => 'newpassword',
+            'current_password' => 'password',
         ];
         $response = $this->putJson('/profile', $payload);
         $response->assertStatus(200)->assertJsonFragment([

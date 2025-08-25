@@ -71,7 +71,7 @@ class ProspectSearchRequestTest extends TestCase
                 'location' => str_repeat('a', 256), // Too long
                 'radius' => 0, // Too small
                 'limit' => 101, // Too large
-                'postal_code' => str_repeat('1', 11) // Too long
+                'sector' => str_repeat('a', 256) // Too long
             ]
         ];
         
@@ -83,7 +83,7 @@ class ProspectSearchRequestTest extends TestCase
         $this->assertArrayHasKey('filters.location', $errors);
         $this->assertArrayHasKey('filters.radius', $errors);
         $this->assertArrayHasKey('filters.limit', $errors);
-        $this->assertArrayHasKey('filters.postal_code', $errors);
+        $this->assertArrayHasKey('filters.sector', $errors);
     }
 
     public function test_accepts_valid_filters(): void
@@ -137,7 +137,7 @@ class ProspectSearchRequestTest extends TestCase
     {
         $data = [
             'query' => 'restaurant',
-            'sources' => ['google_maps', 'pages_jaunes']
+            'sources' => ['google_maps', 'nominatim']
         ];
         
         $validator = Validator::make($data, (new ProspectSearchRequest())->rules());
@@ -206,7 +206,6 @@ class ProspectSearchRequestTest extends TestCase
             'filters.location',
             'filters.sector',
             'filters.radius',
-            'filters.postal_code',
             'filters.limit',
             'sources',
             'sources.*',

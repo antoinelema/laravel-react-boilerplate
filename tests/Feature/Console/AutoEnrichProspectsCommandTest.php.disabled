@@ -1,0 +1,455 @@
+<?php
+
+namespace Tests\Feature\Console;
+
+use App\Console\Commands\AutoEnrichProspects;
+use App\__Infrastructure__\Eloquent\ProspectEloquent;
+use App\__Infrastructure__\Eloquent\UserEloquent;
+use App\__Infrastructure__\Services\Enrichment\EnrichmentEligibilityService;
+use App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+use Mockery;
+
+class AutoEnrichProspectsCommandTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private UserEloquent $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        $this->user = UserEloquent::factory()->create([
+            'subscription_type' => 'premium'
+        ]);
+    }
+
+    public function test_dry_run_mode_shows_eligible_prospects_without_processing()
+    {
+        // Créer des prospects avec différents états
+        $eligibleProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Eligible Prospect',
+            'company' => 'Eligible Company',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null,
+            'data_completeness_score' => 40
+        ]);
+
+        $recentProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Recent Prospect',
+            'email' => 'recent@example.com',
+            'last_enrichment_at' => Carbon::now()->subDays(10)
+        ]);
+
+        // Mock pour ne pas faire d'enrichissement réel en dry-run
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldNotReceive('enrichProspectWebContacts');
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--dry-run' => true,
+            '--limit' => 10
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('🔍 Mode simulation - Prospects qui seraient enrichis :')
+        ->expectsTable([
+            'ID', 'Nom', 'Entreprise', 'Dernier enrichissement', 'Score complétude', 'Priorité'
+        ], [
+            [$eligibleProspect->id, 'Eligible Prospect', 'Eligible Company', 'Jamais', '40%', 'high']
+        ]);
+    }
+
+    public function test_command_processes_eligible_prospects()
+    {
+        $eligibleProspects = collect();
+        for ($i = 1; $i <= 3; $i++) {
+            $eligibleProspects->push(ProspectEloquent::factory()->create([
+                'user_id' => $this->user->id,
+                'name' => "Prospect $i",
+                'company' => "Company $i",
+                'email' => null,
+                'telephone' => null,
+                'last_enrichment_at' => null,
+                'enrichment_attempts' => 0
+            ]));
+        }
+
+        // Mock du service d'enrichissement
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->times(3)
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['test@example.com'],
+                         'phones' => ['+1234567890']
+                     ],
+                     'metadata' => ['sources_used' => ['duckduckgo']]
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 5,
+            '--delay' => 0 // Pas de délai pour les tests
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 3')
+        ->expectsOutput('❌ Échecs : 0')
+        ->expectsOutput('⏭️  Ignorés (non éligibles) : 0');
+
+        // Vérifier que les prospects ont été traités
+        foreach ($eligibleProspects as $prospect) {
+            $prospect->refresh();
+            $this->assertNotNull($prospect->last_enrichment_at);
+            $this->assertEquals(1, $prospect->enrichment_attempts);
+        }
+    }
+
+    public function test_command_handles_enrichment_failures()
+    {
+        $failingProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Failing Prospect',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        $successProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Success Prospect',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        // Mock avec succès et échec
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->twice()
+                 ->andReturnUsing(function ($prospect) {
+                     if ($prospect->name === 'Failing Prospect') {
+                         return [
+                             'success' => false,
+                             'reason' => 'service_unavailable'
+                         ];
+                     }
+                     return [
+                         'success' => true,
+                         'contacts' => ['emails' => ['success@example.com']],
+                         'metadata' => []
+                     ];
+                 });
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 5,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 1')
+        ->expectsOutput('❌ Échecs : 1')
+        ->expectsOutputToContain('Failing Prospect: service_unavailable');
+    }
+
+    public function test_command_respects_limit_parameter()
+    {
+        // Créer 5 prospects éligibles
+        for ($i = 1; $i <= 5; $i++) {
+            ProspectEloquent::factory()->create([
+                'user_id' => $this->user->id,
+                'name' => "Prospect $i",
+                'email' => null,
+                'telephone' => null,
+                'last_enrichment_at' => null
+            ]);
+        }
+
+        // Mock pour seulement 2 appels (limite)
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->times(2)
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['limited@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 2,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 2');
+
+        // Vérifier que seulement 2 prospects ont été traités
+        $processedCount = ProspectEloquent::whereNotNull('last_enrichment_at')->count();
+        $this->assertEquals(2, $processedCount);
+    }
+
+    public function test_command_filters_by_user_id()
+    {
+        $targetUser = UserEloquent::factory()->create();
+        $otherUser = UserEloquent::factory()->create();
+
+        // Prospects pour l'utilisateur cible
+        $targetProspects = collect();
+        for ($i = 1; $i <= 2; $i++) {
+            $targetProspects->push(ProspectEloquent::factory()->create([
+                'user_id' => $targetUser->id,
+                'name' => "Target Prospect $i",
+                'email' => null,
+                'telephone' => null,
+                'last_enrichment_at' => null
+            ]));
+        }
+
+        // Prospects pour un autre utilisateur
+        ProspectEloquent::factory()->create([
+            'user_id' => $otherUser->id,
+            'name' => 'Other User Prospect',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            // Seulement 2 appels pour les prospects de l'utilisateur cible
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->times(2)
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['target@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--user-id' => $targetUser->id,
+            '--limit' => 10,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 2');
+
+        // Vérifier que seuls les prospects de l'utilisateur cible ont été traités
+        foreach ($targetProspects as $prospect) {
+            $prospect->refresh();
+            $this->assertNotNull($prospect->last_enrichment_at);
+        }
+
+        // Vérifier que le prospect de l'autre utilisateur n'a pas été traité
+        $otherProspect = ProspectEloquent::where('user_id', $otherUser->id)->first();
+        $this->assertNull($otherProspect->last_enrichment_at);
+    }
+
+    public function test_command_applies_force_refresh_days()
+    {
+        // Créer un prospect enrichi il y a 50 jours
+        $oldProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Old Prospect',
+            'email' => 'old@example.com',
+            'telephone' => null,
+            'last_enrichment_at' => Carbon::now()->subDays(50),
+            'data_completeness_score' => 60
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['refreshed@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--force-refresh-days' => 30, // Force refresh après 30 jours
+            '--limit' => 5,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 1');
+    }
+
+    public function test_command_respects_max_attempts_limit()
+    {
+        $maxAttemptsProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Max Attempts Prospect',
+            'email' => null,
+            'telephone' => null,
+            'enrichment_attempts' => 5,
+            'last_enrichment_at' => Carbon::now()->subDays(35)
+        ]);
+
+        $normalProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Normal Prospect',
+            'email' => null,
+            'telephone' => null,
+            'enrichment_attempts' => 1,
+            'last_enrichment_at' => null
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            // Seulement un appel pour le prospect normal
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['normal@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--max-attempts' => 3,
+            '--limit' => 5,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('✅ Prospects enrichis avec succès : 1');
+    }
+
+    public function test_command_handles_no_eligible_prospects()
+    {
+        // Créer seulement des prospects non éligibles
+        ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'email' => 'complete@example.com',
+            'telephone' => '+1234567890',
+            'last_enrichment_at' => Carbon::now()->subDays(5),
+            'data_completeness_score' => 95
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldNotReceive('enrichProspectWebContacts');
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 10
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('Aucun prospect éligible trouvé.');
+    }
+
+    public function test_command_shows_progress_bar_and_messages()
+    {
+        $prospect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Progress Test',
+            'company' => 'Progress Company',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['progress@example.com'],
+                         'phones' => ['+9999999999']
+                     ],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 1,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('🔄 Traitement des prospects...')
+        ->expectsOutput('📈 Résultats de l\'enrichissement automatique :');
+    }
+
+    public function test_command_configuration_display()
+    {
+        $this->artisan('prospects:auto-enrich', [
+            '--dry-run' => true,
+            '--limit' => 15,
+            '--force-refresh-days' => 60,
+            '--user-id' => 123,
+            '--max-attempts' => 5,
+            '--delay' => 3
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('Configuration :')
+        ->expectsOutput('  • Limite : 15 prospects')
+        ->expectsOutput('  • Refresh forcé après : 60 jours')
+        ->expectsOutput('  • Utilisateur : 123')
+        ->expectsOutput('  • Mode simulation : Oui')
+        ->expectsOutput('  • Max tentatives : 5')
+        ->expectsOutput('  • Délai entre enrichissements : 3s');
+    }
+
+    public function test_command_exception_handling()
+    {
+        $prospect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        // Mock qui lance une exception
+        $this->mock(EnrichmentEligibilityService::class, function ($mock) {
+            $mock->shouldReceive('getEligibleProspects')
+                 ->andThrow(new \Exception('Database connection failed'));
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 1
+        ])
+        ->assertExitCode(1)
+        ->expectsOutput('❌ Erreur lors de l\'enrichissement automatique : Database connection failed');
+    }
+
+    public function test_command_provides_recommendations()
+    {
+        $prospect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['recommendation@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $this->artisan('prospects:auto-enrich', [
+            '--limit' => 1,
+            '--delay' => 0
+        ])
+        ->assertExitCode(0)
+        ->expectsOutput('💡 Recommandations :')
+        ->expectsOutput('  • Vérifiez les nouveaux contacts dans l\'interface web')
+        ->expectsOutput('  • Configurez des alertes pour les prospects enrichis');
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
+    }
+}

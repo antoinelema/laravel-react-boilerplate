@@ -21,7 +21,7 @@ class ProspectEloquentFactory extends Factory
         $sources = ['google_maps', 'pages_jaunes', 'manual'];
 
         return [
-            'user_id' => UserEloquent::factory(),
+            'user_id' => \Database\Factories\UserFactory::new(),
             'name' => $this->faker->company(),
             'company' => $this->faker->optional(0.8)->company(),
             'sector' => $this->faker->randomElement($sectors),

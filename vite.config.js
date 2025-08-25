@@ -12,6 +12,10 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    server: {
+        port: 5181,
+        host: '0.0.0.0',
+    },
     resolve: {
         alias: {
             '@': resolve(__dirname, 'resources/js'),

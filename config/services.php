@@ -58,4 +58,30 @@ return [
         'base_url' => env('HUNTER_BASE_URL', 'https://api.hunter.io/v2'),
     ],
 
+    // Configuration des services d'enrichissement web
+    'web_enrichment' => [
+        'enable_duckduckgo' => env('WEB_ENRICHMENT_ENABLE_DUCKDUCKGO', true),
+        'enable_google_search' => env('WEB_ENRICHMENT_ENABLE_GOOGLE_SEARCH', false),
+        'enable_universal_scraper' => env('WEB_ENRICHMENT_ENABLE_UNIVERSAL_SCRAPER', true),
+        'timeout' => env('WEB_ENRICHMENT_TIMEOUT', 30),
+    ],
+
+    // Configuration DuckDuckGo Search (gratuit)
+    'duckduckgo' => [
+        'base_url' => env('DUCKDUCKGO_BASE_URL', 'https://html.duckduckgo.com'),
+        'timeout' => env('DUCKDUCKGO_TIMEOUT', 30),
+    ],
+
+    // Configuration Google Search avec Selenium (nécessite serveur Selenium)
+    'google_search' => [
+        'selenium_host' => env('GOOGLE_SEARCH_SELENIUM_HOST', 'http://localhost:4444'),
+        'timeout' => env('GOOGLE_SEARCH_TIMEOUT', 30),
+    ],
+
+    // Configuration Universal Scraper
+    'universal_scraper' => [
+        'timeout' => env('UNIVERSAL_SCRAPER_TIMEOUT', 30),
+        'user_agent' => env('UNIVERSAL_SCRAPER_USER_AGENT', 'Mozilla/5.0 (compatible; Prospecto/1.0)'),
+    ],
+
 ];

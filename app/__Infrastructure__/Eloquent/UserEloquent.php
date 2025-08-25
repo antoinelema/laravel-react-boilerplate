@@ -3,6 +3,7 @@
 namespace App\__Infrastructure__\Eloquent;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 use Illuminate\Auth\Passwords\CanResetPassword;
@@ -15,6 +16,7 @@ class UserEloquent extends Model implements AuthenticatableContract, Authorizabl
     use Authenticatable;
     use Authorizable;
     use CanResetPassword;
+    use HasFactory;
 
     protected $table = 'users';
 

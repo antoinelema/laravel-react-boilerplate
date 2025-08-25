@@ -47,6 +47,14 @@ class ProspectRepository implements Collection
             $query->search($filters['search']);
         }
 
+        if (!empty($filters['category_id'])) {
+            $query->byCategory($filters['category_id']);
+        }
+
+        if (!empty($filters['without_category'])) {
+            $query->withoutCategory();
+        }
+
         $orderBy = $filters['order_by'] ?? 'created_at';
         $orderDirection = $filters['order_direction'] ?? 'desc';
         $query->orderBy($orderBy, $orderDirection);
