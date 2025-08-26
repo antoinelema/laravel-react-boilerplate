@@ -606,9 +606,11 @@ class UniversalScraperService
     {
         $genericPatterns = [
             '/noreply@/', '/no-reply@/', '/donotreply@/',
-            '/postmaster@/', '/admin@/', '/webmaster@/',
+            '/postmaster@/', '/webmaster@/',
             '/info@example/', '/test@/', '/example@/',
-            '/support@/', '/hello@/', '/contact@.*\.com$/'
+            '/^admin@(localhost|127\.0\.0\.1|test\.|demo\.)/',
+            '/^(support|hello)@(test\.|demo\.|localhost)/',
+            '/contact@(test\.|demo\.|localhost|example\.)/'
         ];
 
         foreach ($genericPatterns as $pattern) {

@@ -729,6 +729,9 @@ class ProspectEnrichmentService
 
         if (!empty($enrichmentData)) {
             $updates['enrichment_data'] = json_encode($enrichmentData);
+            
+            // Mettre à jour les champs principaux avec les meilleures informations trouvées
+            $this->updateProspectMainFields($prospectId, $enrichmentData, $updates);
         }
 
         if ($webResult && $webResult->validation) {
@@ -742,5 +745,68 @@ class ProspectEnrichmentService
         DB::table('prospects')
             ->where('id', $prospectId)
             ->update($updates);
+    }
+
+    /**
+     * Met à jour les champs principaux du prospect avec les meilleures informations d'enrichissement
+     */
+    private function updateProspectMainFields(int $prospectId, array $enrichmentData, array &$updates): void
+    {
+        // Récupérer le prospect actuel pour éviter d'écraser des données existantes de qualité
+        $currentProspect = DB::table('prospects')->where('id', $prospectId)->first();
+        $currentContactInfo = json_decode($currentProspect->contact_info ?? '{}', true);
+        $newContactInfo = $currentContactInfo;
+        $hasUpdates = false;
+        
+        // Mettre à jour l'email principal s'il n'y en a pas ou si on trouve un meilleur
+        if (isset($enrichmentData['emails']) && !empty($enrichmentData['emails'])) {
+            $bestEmail = $enrichmentData['emails'][0]; // Premier = meilleur score
+            
+            // Mettre à jour si pas d'email actuel ou si le nouveau score est significativement meilleur
+            if (!isset($currentContactInfo['email']) || $bestEmail['score'] >= 70) {
+                $newContactInfo['email'] = $bestEmail['value'];
+                $hasUpdates = true;
+                Log::info('Updated prospect email', [
+                    'prospect_id' => $prospectId,
+                    'new_email' => $bestEmail['value'],
+                    'score' => $bestEmail['score']
+                ]);
+            }
+        }
+
+        // Mettre à jour le téléphone principal
+        if (isset($enrichmentData['phones']) && !empty($enrichmentData['phones'])) {
+            $bestPhone = $enrichmentData['phones'][0];
+            
+            if (!isset($currentContactInfo['phone']) || $bestPhone['score'] >= 70) {
+                $newContactInfo['phone'] = $bestPhone['value'];
+                $hasUpdates = true;
+                Log::info('Updated prospect phone', [
+                    'prospect_id' => $prospectId,
+                    'new_phone' => $bestPhone['value'],
+                    'score' => $bestPhone['score']
+                ]);
+            }
+        }
+
+        // Mettre à jour le site web principal
+        if (isset($enrichmentData['websites']) && !empty($enrichmentData['websites'])) {
+            $bestWebsite = $enrichmentData['websites'][0];
+            
+            if (!isset($currentContactInfo['website']) || $bestWebsite['score'] >= 70) {
+                $newContactInfo['website'] = $bestWebsite['value'];
+                $hasUpdates = true;
+                Log::info('Updated prospect website', [
+                    'prospect_id' => $prospectId,
+                    'new_website' => $bestWebsite['value'],
+                    'score' => $bestWebsite['score']
+                ]);
+            }
+        }
+
+        // Mettre à jour le champ contact_info si il y a eu des changements
+        if ($hasUpdates) {
+            $updates['contact_info'] = json_encode($newContactInfo);
+        }
     }
 }

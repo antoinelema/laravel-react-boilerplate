@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 import { useProspectEnrichment } from '../../hooks/useEnrichmentEligibility';
 
 const EnrichmentButton = ({ 
@@ -72,53 +75,50 @@ const EnrichmentButton = ({
         // Mode enrichissement ou éligible
         if (isEnriching) {
             return (
-                <button 
-                    className={`btn btn-primary ${size === 'sm' ? 'btn-sm' : ''} ${className}`}
+                <Button 
+                    variant="default"
+                    size={size}
+                    className={className}
                     disabled
                 >
-                    <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Enrichissement...
-                    </div>
-                </button>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enrichissement...
+                </Button>
             );
         }
 
         // Éligible ou en mode force
         if (isEligible || forceMode) {
             const buttonText = forceMode ? 'Forcer enrichissement' : 'Enrichir';
-            const buttonClass = forceMode ? 'btn-warning' : 'btn-primary';
+            const variant = forceMode ? 'destructive' : 'default';
             
             return (
-                <button 
-                    className={`btn ${buttonClass} ${size === 'sm' ? 'btn-sm' : ''} ${className}`}
+                <Button 
+                    variant={variant}
+                    size={size}
+                    className={className}
                     onClick={handleEnrich}
                     title={eligibilityMessage}
                 >
-                    <div className="flex items-center">
-                        <span className="mr-1">{eligibilityIcon}</span>
-                        {buttonText}
-                    </div>
-                </button>
+                    <span className="mr-1">{eligibilityIcon}</span>
+                    {buttonText}
+                </Button>
             );
         }
 
         // Non éligible - bouton désactivé avec info
         return (
-            <button 
-                className={`btn btn-secondary ${size === 'sm' ? 'btn-sm' : ''} ${className}`}
+            <Button 
+                variant="secondary"
+                size={size}
+                className={className}
                 disabled
                 title={eligibilityMessage}
                 onClick={() => setShowDetails(!showDetails)}
             >
-                <div className="flex items-center">
-                    <span className="mr-1">{eligibilityIcon}</span>
-                    {getButtonLabel()}
-                </div>
-            </button>
+                <span className="mr-1">{eligibilityIcon}</span>
+                {getButtonLabel()}
+            </Button>
         );
     };
 
@@ -144,13 +144,15 @@ const EnrichmentButton = ({
         if (isEnriching || isEligible || !canForceEnrich) return null;
 
         return (
-            <button
-                className={`btn btn-link ${size === 'sm' ? 'btn-xs' : 'btn-sm'} p-1 ml-2`}
+            <Button
+                variant="link"
+                size={size === 'sm' ? 'sm' : 'default'}
+                className="p-1 ml-2"
                 onClick={handleToggleForce}
                 title={forceMode ? 'Annuler le mode force' : 'Forcer l\'enrichissement'}
             >
                 {forceMode ? 'Annuler' : 'Forcer'}
-            </button>
+            </Button>
         );
     };
 
@@ -170,14 +172,16 @@ const EnrichmentButton = ({
         if (!error) return null;
 
         return (
-            <div className="mt-2 text-xs text-red-600">
+            <div className="mt-2 text-xs text-red-600 flex items-center">
                 Erreur: {error}
-                <button
-                    className="ml-2 text-blue-600 hover:underline"
+                <Button
+                    variant="link"
+                    size="sm"
+                    className="ml-2 h-auto p-0 text-blue-600 hover:underline"
                     onClick={clearError}
                 >
                     ✖
-                </button>
+                </Button>
             </div>
         );
     };
@@ -276,25 +280,22 @@ export const BulkEnrichmentButton = ({
 
     return (
         <div className="bulk-enrichment-wrapper">
-            <button
-                className="btn btn-primary"
+            <Button
+                variant="default"
                 onClick={handleBulkEnrich}
                 disabled={isProcessing}
             >
                 {isProcessing ? (
-                    <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Enrichissement en cours...
-                    </div>
+                    </>
                 ) : (
                     <>
                         Enrichir la sélection ({selectedProspects.length})
                     </>
                 )}
-            </button>
+            </Button>
 
             {results && (
                 <div className="mt-2 text-sm">
@@ -331,30 +332,30 @@ export const EnrichmentStatusBadge = ({ prospect, className = '' }) => {
     
     if (!prospect?.id || !eligibility) return null;
 
-    const getBadgeClass = () => {
+    const getBadgeVariant = () => {
         if (eligibility.is_eligible) {
             switch (eligibility.priority) {
-                case 'high': return 'badge-success';
-                case 'medium': return 'badge-warning';
-                case 'low': return 'badge-info';
-                default: return 'badge-success';
+                case 'high': return 'default';
+                case 'medium': return 'secondary';
+                case 'low': return 'outline';
+                default: return 'default';
             }
         }
         
         switch (eligibility.reason) {
-            case 'complete_data': return 'badge-success';
-            case 'recently_enriched': return 'badge-secondary';
-            case 'blacklisted': return 'badge-error';
-            case 'in_progress': return 'badge-info';
-            default: return 'badge-secondary';
+            case 'complete_data': return 'default';
+            case 'recently_enriched': return 'secondary';
+            case 'blacklisted': return 'destructive';
+            case 'in_progress': return 'outline';
+            default: return 'secondary';
         }
     };
 
     return (
-        <span className={`badge ${getBadgeClass()} ${className}`} title={eligibility.reason}>
+        <Badge variant={getBadgeVariant()} className={className} title={eligibility.reason}>
             <span className="mr-1">{eligibilityIcon}</span>
             {eligibility.completeness_score}%
-        </span>
+        </Badge>
     );
 };
 

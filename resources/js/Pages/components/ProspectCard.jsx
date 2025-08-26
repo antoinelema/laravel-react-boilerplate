@@ -266,49 +266,55 @@ export function ProspectCard({
                 )}
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="text-xs text-gray-500">
-                        {prospect.source && (
+                {/* Section source */}
+                {prospect.source && (
+                    <div className="pt-2 border-t">
+                        <div className="text-xs text-gray-500">
                             <span>Source: {prospect.source}</span>
-                        )}
+                        </div>
                     </div>
+                )}
                     
-                    {/* Ligne d'enrichissement et sélection */}
-                    {(showEnrichment || onSelectionChange) && (
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                            <div className="flex items-center gap-2">
-                                {/* Checkbox de sélection */}
-                                {onSelectionChange && (
-                                    <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={(e) => onSelectionChange(e.target.checked)}
-                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                )}
+                {/* Section enrichissement et sélection */}
+                {(showEnrichment || onSelectionChange) && (
+                    <div className="pt-2 border-t space-y-2">
+                        {/* Ligne de sélection et badge */}
+                        <div className="flex items-center gap-2">
+                            {/* Checkbox de sélection */}
+                            {onSelectionChange && (
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => onSelectionChange(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                                />
+                            )}
 
-                                {/* Badge d'état d'enrichissement */}
-                                {showEnrichment && (
-                                    <EnrichmentStatusBadge prospect={prospect} />
-                                )}
-                            </div>
-
-                            {/* Bouton d'enrichissement */}
+                            {/* Badge d'état d'enrichissement */}
                             {showEnrichment && (
+                                <EnrichmentStatusBadge prospect={prospect} />
+                            )}
+                        </div>
+
+                        {/* Ligne bouton d'enrichissement */}
+                        {showEnrichment && (
+                            <div className="flex justify-center">
                                 <EnrichmentButton 
                                     prospect={prospect}
                                     onEnrichmentComplete={(prospect, result) => {
-                                        if (onProspectUpdate) {
-                                            onProspectUpdate(prospect.id, result);
+                                        if (onProspectUpdate && result.updated_prospect) {
+                                            // Mettre à jour avec les nouvelles données du prospect
+                                            onProspectUpdate(prospect.id, result.updated_prospect);
                                         }
                                     }}
                                     size="sm"
                                 />
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                    <div className="flex gap-2">
+                <div className="flex gap-2">
                         <Dialog open={isNotesDialogOpen} onOpenChange={setIsNotesDialogOpen}>
                             <DialogTrigger asChild>
                                 <Tooltip>
@@ -514,7 +520,6 @@ export function ProspectCard({
                             </TooltipContent>
                         </Tooltip>
                     </div>
-                </div>
             </CardContent>
         </Card>
     )

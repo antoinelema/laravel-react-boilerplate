@@ -213,7 +213,8 @@ export const useProspectEnrichment = (prospectId) => {
                 return {
                     success: true,
                     contacts: results.contacts,
-                    metadata: results.metadata
+                    metadata: results.metadata,
+                    updated_prospect: results.updated_prospect
                 };
 
             } else {
