@@ -119,4 +119,16 @@ return [
     */
 
     'external_services_demo_mode' => env('EXTERNAL_SERVICES_DEMO_MODE', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daily Search Limit for Free Users
+    |--------------------------------------------------------------------------
+    |
+    | Maximum number of searches allowed per day for free users.
+    | Premium users have unlimited searches.
+    |
+    */
+
+    'daily_search_limit' => env('DAILY_SEARCH_LIMIT', 5),
 ];

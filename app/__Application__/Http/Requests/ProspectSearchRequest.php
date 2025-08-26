@@ -21,11 +21,10 @@ class ProspectSearchRequest extends FormRequest
             'filters' => ['sometimes', 'array'],
             'filters.location' => ['sometimes', 'nullable', 'string', 'max:255'],
             'filters.sector' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'filters.radius' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50000'],
-            'filters.postal_code' => ['sometimes', 'nullable', 'string', 'max:10'],
+            'filters.radius' => ['sometimes', 'nullable', 'integer', 'min:1000', 'max:50000'], // en mètres
             'filters.limit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'sources' => ['sometimes', 'array'],
-            'sources.*' => ['string', 'in:pages_jaunes,google_maps'],
+            'sources.*' => ['string', 'in:google_maps,nominatim,clearbit,hunter,demo'],
             'save_search' => ['sometimes', 'boolean'],
         ];
     }
@@ -39,13 +38,12 @@ class ProspectSearchRequest extends FormRequest
             'filters.array' => 'Les filtres doivent être un objet',
             'filters.location.max' => 'La localisation ne peut pas dépasser 255 caractères',
             'filters.sector.max' => 'Le secteur ne peut pas dépasser 255 caractères',
-            'filters.radius.min' => 'Le rayon doit être au minimum de 1 mètre',
+            'filters.radius.min' => 'Le rayon doit être au minimum de 1 km',
             'filters.radius.max' => 'Le rayon ne peut pas dépasser 50 km',
-            'filters.postal_code.max' => 'Le code postal ne peut pas dépasser 10 caractères',
             'filters.limit.min' => 'Le nombre de résultats minimum est 1',
             'filters.limit.max' => 'Le nombre de résultats maximum est 100',
             'sources.array' => 'Les sources doivent être un tableau',
-            'sources.*.in' => 'Source invalide. Sources supportées: pages_jaunes, google_maps',
+            'sources.*.in' => 'Source invalide. Sources supportées: google_maps, nominatim, clearbit, hunter, demo',
         ];
     }
 

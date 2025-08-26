@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class UserRoutesTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     public function test_register_route_creates_user()
     {
@@ -46,6 +46,7 @@ class UserRoutesTest extends TestCase
             'firstname' => 'Firstname',
             'password' => 'newpassword',
             'password_confirmation' => 'newpassword',
+            'current_password' => 'password',
         ];
         $response = $this->putJson('/profile', $payload);
         $response->assertStatus(200)->assertJsonFragment([

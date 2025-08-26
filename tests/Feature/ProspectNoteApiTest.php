@@ -3,14 +3,14 @@
 namespace Tests\Feature;
 
 use Tests\TestCase;
-use App\__Infrastructure__\Persistence\Eloquent\User as UserEloquent;
-use App\__Infrastructure__\Persistence\Eloquent\Prospect as ProspectEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\__Infrastructure__\Eloquent\UserEloquent;
+use App\__Infrastructure__\Eloquent\ProspectEloquent;
+use Tests\Concerns\ResetsTransactions;
 use Illuminate\Support\Facades\DB;
 
 class ProspectNoteApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     private UserEloquent $user;
     private array $prospectData;
@@ -19,7 +19,7 @@ class ProspectNoteApiTest extends TestCase
     {
         parent::setUp();
         
-        $this->user = UserEloquent::factory()->create();
+        $this->user = UserEloquent::factory()->create(['subscription_type' => 'premium']);
         
         $this->prospectData = [
             'user_id' => $this->user->id,
@@ -79,14 +79,17 @@ class ProspectNoteApiTest extends TestCase
         
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'notes' => [
-                    '*' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                'success',
+                'data' => [
+                    'notes' => [
+                        '*' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                    ]
                 ]
             ])
-            ->assertJsonCount(2, 'notes');
+            ->assertJsonCount(2, 'data.notes');
             
         // Vérifier l'ordre (plus récent en premier)
-        $notes = $response->json('notes');
+        $notes = $response->json('data.notes');
         $this->assertEquals('Second note', $notes[0]['content']);
         $this->assertEquals('First note', $notes[1]['content']);
     }
@@ -153,7 +156,10 @@ class ProspectNoteApiTest extends TestCase
         
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'note' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                'success',
+                'data' => [
+                    'note' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                ]
             ]);
             
         $this->assertDatabaseHas('prospect_notes', [
@@ -203,7 +209,10 @@ class ProspectNoteApiTest extends TestCase
         
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'note' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                'success',
+                'data' => [
+                    'note' => ['id', 'prospect_id', 'content', 'type', 'created_at', 'updated_at']
+                ]
             ]);
             
         $this->assertDatabaseHas('prospect_notes', [

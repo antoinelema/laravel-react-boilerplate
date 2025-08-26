@@ -5,22 +5,41 @@ import { Form, FormItem, FormLabel, FormControl, FormMessage, FormField } from '
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/secureApi';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Nom requis.' }),
   firstname: z.string().min(2, { message: 'Prénom requis.' }),
+  current_password: z.string().optional().or(z.literal('')),
   password: z.string().min(8, { message: 'Mot de passe trop court.' }).optional().or(z.literal('')),
   password_confirmation: z.string().optional().or(z.literal('')),
+}).refine((data) => {
+  // Si un nouveau mot de passe est fourni, l'ancien est requis
+  if (data.password && data.password.length > 0) {
+    return data.current_password && data.current_password.length > 0;
+  }
+  return true;
+}, {
+  message: 'Mot de passe actuel requis pour changer le mot de passe.',
+  path: ['current_password'],
+}).refine((data) => {
+  // Vérifier que les mots de passe correspondent
+  if (data.password && data.password.length > 0) {
+    return data.password === data.password_confirmation;
+  }
+  return true;
+}, {
+  message: 'Les mots de passe ne correspondent pas.',
+  path: ['password_confirmation'],
 });
 
 const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
-  console.log('UpdateUserForm rendered with user:', user);
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: user?.name || '',
       firstname: user?.firstname || '',
+      current_password: '',
       password: '',
       password_confirmation: '',
     },
@@ -30,6 +49,7 @@ const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
     form.reset({
       name: user?.name || '',
       firstname: user?.firstname || '',
+      current_password: '',
       password: '',
       password_confirmation: '',
     });
@@ -41,13 +61,10 @@ const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
       name: values.name,
       firstname: values.firstname,
     };
-    // Si un mot de passe est fourni, on envoie aussi password_confirmation
+    // Si un mot de passe est fourni, on envoie current_password, password et password_confirmation
     if (values.password) {
+      payload.current_password = values.current_password;
       payload.password = values.password;
-      payload.password_confirmation = values.password_confirmation;
-    }
-    // Toujours envoyer password_confirmation si le champ est rempli (même si password vide)
-    if (!values.password && values.password_confirmation) {
       payload.password_confirmation = values.password_confirmation;
     }
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -64,7 +81,7 @@ const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
       });
       if (res.ok) {
         onSuccess && onSuccess();
-        form.reset({ ...values, password: '', password_confirmation: '' });
+        form.reset({ ...values, current_password: '', password: '', password_confirmation: '' });
       } else {
         await handleApiError(res, 'Erreur lors de la mise à jour');
       }
@@ -106,6 +123,19 @@ const UpdateUserForm = ({ user, onSuccess, onError, loading }) => {
           <label className="block text-sm font-medium">Adresse e-mail</label>
           <Input value={user?.email || ''} disabled className="mt-1 w-full border rounded px-3 py-2 bg-gray-100 text-gray-500" />
         </div>
+        <FormField
+          control={form.control}
+          name="current_password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Mot de passe actuel</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="current-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="password"

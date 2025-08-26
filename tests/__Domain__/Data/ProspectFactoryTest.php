@@ -110,7 +110,7 @@ class ProspectFactoryTest extends TestCase
         $this->assertGreaterThan(50, $prospect->relevanceScore); // Should have bonus for phone and website
     }
 
-    public function test_create_from_api_data_pages_jaunes(): void
+    public function test_create_from_api_data_demo(): void
     {
         $apiData = [
             'id' => 'pj_456',
@@ -120,14 +120,14 @@ class ProspectFactoryTest extends TestCase
             'city' => 'Marseille'
         ];
 
-        $prospect = Factory::createFromApiData($apiData, 2, 'pages_jaunes');
+        $prospect = Factory::createFromApiData($apiData, 2, 'demo');
 
         $this->assertEquals(2, $prospect->userId);
         $this->assertEquals('Boulangerie Martin', $prospect->name);
         $this->assertEquals('Marseille', $prospect->city);
         $this->assertEquals('contact@martin.fr', $prospect->contactInfo['email']);
         $this->assertEquals('0145678901', $prospect->contactInfo['phone']);
-        $this->assertEquals('pages_jaunes', $prospect->source);
+        $this->assertEquals('demo', $prospect->source);
         $this->assertEquals('pj_456', $prospect->externalId);
         // Should have high score due to email + phone
         $this->assertGreaterThanOrEqual(85, $prospect->relevanceScore);

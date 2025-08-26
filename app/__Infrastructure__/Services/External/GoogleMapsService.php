@@ -17,7 +17,7 @@ class GoogleMapsService
     public function __construct()
     {
         $this->apiKey = config('services.google_maps.api_key');
-        $this->baseUrl = 'https://maps.googleapis.com/maps/api/place';
+        $this->baseUrl = 'https://places.googleapis.com/v1';
     }
 
     /**
@@ -31,10 +31,15 @@ class GoogleMapsService
         }
 
         try {
-            $params = $this->buildSearchParams($query, $filters);
+            $requestBody = $this->buildNewApiSearchBody($query, $filters);
             
             $response = Http::timeout(30)
-                          ->get($this->baseUrl . '/textsearch/json', $params);
+                          ->withHeaders([
+                              'Content-Type' => 'application/json',
+                              'X-Goog-Api-Key' => $this->apiKey,
+                              'X-Goog-FieldMask' => 'places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.businessStatus,places.priceLevel,places.types,places.websiteUri,places.nationalPhoneNumber,places.id'
+                          ])
+                          ->post($this->baseUrl . '/places:searchText', $requestBody);
 
             if (!$response->successful()) {
                 Log::error('Google Maps API error', [
@@ -44,7 +49,7 @@ class GoogleMapsService
                 return $this->getDemoResults($query, $filters);
             }
 
-            return $this->formatSearchResponse($response);
+            return $this->formatNewApiSearchResponse($response);
 
         } catch (\Exception $e) {
             Log::error('Google Maps service error', [
@@ -161,6 +166,25 @@ class GoogleMapsService
         return $params;
     }
 
+    private function buildNewApiSearchBody(string $query, array $filters): array
+    {
+        $body = [
+            'textQuery' => $query,
+            'maxResultCount' => intval($filters['limit'] ?? 10),
+        ];
+
+        if (!empty($filters['location'])) {
+            // Pour la nouvelle API, nous devrons convertir la location en coordonnées
+            // Pour l'instant, on utilise juste la recherche textuelle
+        }
+
+        if (!empty($filters['type'])) {
+            $body['includedType'] = $filters['type'];
+        }
+
+        return $body;
+    }
+
     private function formatSearchResponse(Response $response): array
     {
         $data = $response->json();
@@ -172,6 +196,22 @@ class GoogleMapsService
 
         foreach ($data['results'] as $place) {
             $results[] = $this->formatPlace($place);
+        }
+
+        return $results;
+    }
+
+    private function formatNewApiSearchResponse(Response $response): array
+    {
+        $data = $response->json();
+        $results = [];
+
+        if (empty($data['places'])) {
+            return [];
+        }
+
+        foreach ($data['places'] as $place) {
+            $results[] = $this->formatNewApiPlace($place);
         }
 
         return $results;
@@ -208,6 +248,41 @@ class GoogleMapsService
             'price_level' => $place['price_level'] ?? null,
             'source' => 'google_maps',
             'external_id' => $place['place_id'] ?? null,
+            'raw_data' => $place,
+        ];
+    }
+
+    private function formatNewApiPlace(array $place): array
+    {
+        $address = $this->parseAddress($place['formattedAddress'] ?? '');
+        
+        return [
+            'id' => $place['id'] ?? null,
+            'name' => $place['displayName']['text'] ?? 'Unknown',
+            'company' => $place['displayName']['text'] ?? null,
+            'sector' => $this->extractSector($place['types'] ?? []),
+            'description' => null,
+            'phone' => $place['nationalPhoneNumber'] ?? null,
+            'email' => null, // Google Maps API doesn't provide emails in search results
+            'website' => $place['websiteUri'] ?? null,
+            'address' => [
+                'full' => $place['formattedAddress'] ?? null,
+                'street' => $address['street'] ?? null,
+                'city' => $address['city'] ?? null,
+                'postal_code' => $address['postal_code'] ?? null,
+            ],
+            'city' => $address['city'] ?? null,
+            'postal_code' => $address['postal_code'] ?? null,
+            'coordinates' => [
+                'lat' => $place['location']['latitude'] ?? null,
+                'lng' => $place['location']['longitude'] ?? null,
+            ],
+            'rating' => $place['rating'] ?? null,
+            'user_ratings_total' => $place['userRatingCount'] ?? null,
+            'business_status' => $place['businessStatus'] ?? null,
+            'price_level' => $place['priceLevel'] ?? null,
+            'source' => 'google_maps',
+            'external_id' => $place['id'] ?? null,
             'raw_data' => $place,
         ];
     }

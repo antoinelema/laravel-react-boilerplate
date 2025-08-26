@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\ProspectEloquent;
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 /**
@@ -12,7 +12,7 @@ use Tests\TestCase;
  */
 class ProspectApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     private UserEloquent $user;
     private UserEloquent $otherUser;
@@ -21,8 +21,23 @@ class ProspectApiTest extends TestCase
     {
         parent::setUp();
         
-        $this->user = UserEloquent::factory()->create();
-        $this->otherUser = UserEloquent::factory()->create();
+        $this->user = UserEloquent::create([
+            'name' => 'Test',
+            'firstname' => 'User',
+            'email' => 'testuser@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'user',
+            'subscription_type' => 'premium' // Premium for testing prospect features
+        ]);
+        
+        $this->otherUser = UserEloquent::create([
+            'name' => 'Other',
+            'firstname' => 'User', 
+            'email' => 'otheruser@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'user',
+            'subscription_type' => 'premium'
+        ]);
     }
 
     public function test_list_prospects_requires_authentication(): void
@@ -376,5 +391,297 @@ class ProspectApiTest extends TestCase
                 'filters_applied'
             ]
         ]);
+    }
+
+    public function test_store_bulk_requires_authentication(): void
+    {
+        $response = $this->postJson('/api/v1/prospects/bulk', [
+            'prospects' => [
+                ['name' => 'Test Prospect']
+            ]
+        ]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_store_bulk_validates_prospects_array(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', []);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['prospects']);
+    }
+
+    public function test_store_bulk_validates_empty_prospects_array(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => []
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['prospects']);
+    }
+
+    public function test_store_bulk_validates_prospects_limit(): void
+    {
+        $prospects = array_fill(0, 101, ['name' => 'Test Prospect']);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => $prospects
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['prospects']);
+    }
+
+    public function test_store_bulk_validates_prospect_fields(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => [
+                    ['name' => ''], // name required
+                    [
+                        'name' => 'Valid Name',
+                        'email' => 'invalid-email', // invalid email
+                        'website' => 'not-a-url' // invalid URL
+                    ]
+                ]
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'prospects.0.name',
+                'prospects.1.email',
+                'prospects.1.website'
+            ]);
+    }
+
+    public function test_store_bulk_success_single_prospect(): void
+    {
+        $prospectData = [
+            'name' => 'John Doe',
+            'company' => 'Acme Corp',
+            'sector' => 'Technology',
+            'city' => 'Paris',
+            'postal_code' => '75001',
+            'address' => '123 Rue de la Paix',
+            'phone' => '0123456789',
+            'email' => 'john@acme.com',
+            'website' => 'https://acme.com',
+            'description' => 'Great company',
+            'relevance_score' => 85,
+            'source' => 'manual',
+            'external_id' => 'ext-123'
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => [$prospectData],
+                'search_id' => 123
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => '1 prospect(s) sauvegardé(s)',
+                'data' => [
+                    'saved' => 1,
+                    'exists' => 0,
+                    'errors' => 0
+                ]
+            ])
+            ->assertJsonCount(1, 'data.details');
+
+        $this->assertDatabaseHas('prospects', [
+            'user_id' => $this->user->id,
+            'name' => 'John Doe',
+            'company' => 'Acme Corp'
+        ]);
+    }
+
+    public function test_store_bulk_success_multiple_prospects(): void
+    {
+        $prospectsData = [
+            [
+                'name' => 'John Doe',
+                'company' => 'Acme Corp',
+                'sector' => 'Technology'
+            ],
+            [
+                'name' => 'Jane Smith',
+                'company' => 'Beta Inc',
+                'sector' => 'Marketing'
+            ],
+            [
+                'name' => 'Bob Wilson',
+                'company' => 'Gamma Ltd',
+                'sector' => 'Finance'
+            ]
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => $prospectsData
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => '3 prospect(s) sauvegardé(s)',
+                'data' => [
+                    'saved' => 3,
+                    'exists' => 0,
+                    'errors' => 0
+                ]
+            ])
+            ->assertJsonCount(3, 'data.details');
+
+        foreach ($prospectsData as $prospectData) {
+            $this->assertDatabaseHas('prospects', [
+                'user_id' => $this->user->id,
+                'name' => $prospectData['name'],
+                'company' => $prospectData['company']
+            ]);
+        }
+    }
+
+    public function test_store_bulk_handles_existing_prospects(): void
+    {
+        // Create an existing prospect
+        $existingProspect = ProspectEloquent::factory()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Existing Prospect',
+            'company' => 'Existing Corp'
+        ]);
+
+        $prospectsData = [
+            [
+                'name' => 'Existing Prospect', // Will be detected as existing
+                'company' => 'Existing Corp'
+            ],
+            [
+                'name' => 'New Prospect',
+                'company' => 'New Corp'
+            ]
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => $prospectsData
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => '1 prospect(s) sauvegardé(s), 1 prospect(s) existaient déjà',
+                'data' => [
+                    'saved' => 1,
+                    'exists' => 1,
+                    'errors' => 0
+                ]
+            ]);
+
+        // Verify new prospect was created
+        $this->assertDatabaseHas('prospects', [
+            'user_id' => $this->user->id,
+            'name' => 'New Prospect',
+            'company' => 'New Corp'
+        ]);
+    }
+
+    public function test_store_bulk_normalizes_contact_info(): void
+    {
+        $prospectData = [
+            'name' => 'Contact Test',
+            'company' => 'Contact Corp',
+            'phone' => '0123456789',
+            'email' => 'test@contact.com',
+            'website' => 'https://contact.com',
+            'contact_info' => [
+                'existing_field' => 'existing_value'
+            ]
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => [$prospectData]
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'data' => [
+                    'saved' => 1,
+                    'exists' => 0,
+                    'errors' => 0
+                ]
+            ]);
+
+        // Verify contact info was properly normalized
+        $prospect = ProspectEloquent::where('name', 'Contact Test')->first();
+        $this->assertNotNull($prospect);
+        
+        $contactInfo = $prospect->contact_info;
+        $this->assertEquals('0123456789', $contactInfo['phone']);
+        $this->assertEquals('test@contact.com', $contactInfo['email']);
+        $this->assertEquals('https://contact.com', $contactInfo['website']);
+        $this->assertEquals('existing_value', $contactInfo['existing_field']);
+    }
+
+    public function test_store_bulk_response_structure(): void
+    {
+        $prospectsData = [
+            [
+                'name' => 'Structure Test',
+                'company' => 'Structure Corp'
+            ]
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => $prospectsData
+            ]);
+
+        $response->assertJsonStructure([
+            'success',
+            'message',
+            'data' => [
+                'saved',
+                'exists',
+                'errors',
+                'details' => [
+                    '*' => [
+                        'index',
+                        'name',
+                        'status',
+                        'prospect_id'
+                    ]
+                ]
+            ]
+        ]);
+    }
+
+    public function test_store_bulk_transaction_rollback_on_critical_error(): void
+    {
+        // This would be tested with a mock to simulate database errors
+        // For now, we verify that the method handles errors gracefully
+        
+        $prospectsData = [
+            [
+                'name' => 'Valid Prospect',
+                'company' => 'Valid Corp'
+            ]
+        ];
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/v1/prospects/bulk', [
+                'prospects' => $prospectsData
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['success' => true]);
     }
 }

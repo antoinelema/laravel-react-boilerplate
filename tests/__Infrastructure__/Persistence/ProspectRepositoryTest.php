@@ -168,7 +168,7 @@ class ProspectRepositoryTest extends TestCase
         
         ProspectEloquent::factory()->create([
             'external_id' => 'gm_123',
-            'source' => 'pages_jaunes' // Same external ID but different source
+            'source' => 'demo' // Same external ID but different source
         ]);
 
         $prospect = $this->repository->findByExternalId('gm_123', 'google_maps');
@@ -271,6 +271,7 @@ class ProspectRepositoryTest extends TestCase
         ProspectEloquent::factory()->create([
             'user_id' => $this->user->id,
             'name' => 'Boulangerie Martin',
+            'sector' => 'bakery',
             'relevance_score' => 65
         ]);
 

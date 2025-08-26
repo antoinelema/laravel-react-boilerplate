@@ -1,0 +1,414 @@
+<?php
+
+namespace Tests\Feature\Services;
+
+use App\__Domain__\Data\Prospect\Prospect;
+use App\__Infrastructure__\Eloquent\ProspectEloquent;
+use App\__Infrastructure__\Eloquent\ProspectEnrichmentHistoryEloquent;
+use App\__Infrastructure__\Services\Enrichment\EnrichmentEligibilityService;
+use App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService;
+use App\__Infrastructure__\Services\WebEnrichment\WebEnrichmentService;
+use Carbon\Carbon;
+use Database\Factories\ProspectEloquentFactory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+use Mockery;
+
+class ProspectEnrichmentServiceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private ProspectEnrichmentService $enrichmentService;
+    private EnrichmentEligibilityService $eligibilityService;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        $this->enrichmentService = app(ProspectEnrichmentService::class);
+        $this->eligibilityService = app(EnrichmentEligibilityService::class);
+    }
+
+    public function test_enrichment_checks_eligibility_before_processing()
+    {
+        // Créer un prospect récemment enrichi (non éligible)
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'Recently Enriched',
+            'company' => 'Test Company',
+            'contact_info' => ['email' => 'test@example.com'],
+            'last_enrichment_at' => Carbon::now()->subDays(10),
+            'data_completeness_score' => 70
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        // Mock le WebEnrichmentService pour éviter les appels réels
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldNotReceive('enrichProspectContacts');
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect, [
+            'triggered_by' => 'user'
+        ]);
+
+        $this->assertFalse($result['success']);
+        $this->assertEquals('not_eligible', $result['reason']);
+    }
+
+    public function test_enrichment_processes_eligible_prospect()
+    {
+        // Créer un prospect éligible
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'John Doe',
+            'company' => 'Test Company',
+            'contact_info' => ['website' => 'https://example.com'],
+            'last_enrichment_at' => null,
+            'enrichment_attempts' => 0,
+            'enrichment_status' => 'never',
+            'auto_enrich_enabled' => true,
+            'enrichment_blacklisted_at' => null,
+            'data_completeness_score' => 45 // Score faible pour être éligible
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        // Mock le WebEnrichmentService
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['john@example.com'],
+                         'phones' => ['+1234567890'],
+                         'websites' => ['https://example.com'],
+                         'social_media' => ['https://linkedin.com/in/johndoe']
+                     ],
+                     'metadata' => [
+                         'sources_used' => ['duckduckgo', 'universal'],
+                         'execution_time' => 2.5,
+                         'total_requests' => 3
+                     ]
+                 ]);
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect, [
+            'triggered_by' => 'user',
+            'force' => true // Forcer pour éviter les vérifications d'éligibilité
+        ]);
+        
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('contacts', $result);
+        $this->assertCount(1, $result['contacts']['emails']);
+        $this->assertEquals('john@example.com', $result['contacts']['emails'][0]);
+
+        // Vérifier que la base de données a été mise à jour
+        $prospectEloquent->refresh();
+        $this->assertNotNull($prospectEloquent->last_enrichment_at);
+        $this->assertEquals(1, $prospectEloquent->enrichment_attempts);
+        $this->assertEquals('completed', $prospectEloquent->enrichment_status);
+        $this->assertGreaterThan(0, $prospectEloquent->enrichment_score);
+
+        // Vérifier qu'un historique a été créé
+        $this->assertDatabaseHas('prospect_enrichment_history', [
+            'prospect_id' => $prospect->id,
+            'status' => 'completed',
+            'triggered_by' => 'user'
+        ]);
+    }
+
+    public function test_enrichment_handles_failure_correctly()
+    {
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'Failing Prospect',
+            'company' => 'Test Company',
+            'contact_info' => [],
+            'last_enrichment_at' => null,
+            'enrichment_attempts' => 0
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        // Mock une erreur dans WebEnrichmentService
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andThrow(new \Exception('Service unavailable'));
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect, [
+            'triggered_by' => 'user'
+        ]);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContains('Service unavailable', $result['reason']);
+
+        // Vérifier que l'échec est enregistré
+        $prospectEloquent->refresh();
+        $this->assertEquals(1, $prospectEloquent->enrichment_attempts);
+        $this->assertEquals('failed', $prospectEloquent->enrichment_status);
+
+        // Vérifier l'historique d'échec
+        $this->assertDatabaseHas('prospect_enrichment_history', [
+            'prospect_id' => $prospect->id,
+            'status' => 'failed',
+            'error_message' => 'Service unavailable'
+        ]);
+    }
+
+    public function test_force_mode_bypasses_eligibility_check()
+    {
+        // Créer un prospect avec données complètes (normalement non éligible)
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'Complete Prospect',
+            'company' => 'Test Company',
+            'contact_info' => ['email' => 'existing@example.com', 'phone' => '+1111111111'],
+            'last_enrichment_at' => Carbon::now()->subDay(),
+            'data_completeness_score' => 95
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        // Mock le WebEnrichmentService
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['new@example.com'],
+                         'phones' => [],
+                         'websites' => [],
+                         'social_media' => []
+                     ],
+                     'metadata' => ['sources_used' => ['forced']]
+                 ]);
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect, [
+            'triggered_by' => 'manual',
+            'force' => true
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('forced', $result);
+        $this->assertTrue($result['forced']);
+    }
+
+    public function test_bulk_enrichment_processes_multiple_prospects()
+    {
+        // Créer plusieurs prospects éligibles
+        $prospects = collect();
+        for ($i = 1; $i <= 3; $i++) {
+            $prospectEloquent = ProspectEloquentFactory::new()->create([
+                'name' => "Prospect $i",
+                'company' => "Company $i",
+                'contact_info' => [],
+                'last_enrichment_at' => null,
+                'enrichment_attempts' => 0
+            ]);
+            $prospects->push($prospectEloquent->toDomainModel());
+        }
+
+        // Mock le WebEnrichmentService pour chaque prospect
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->times(3)
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['bulk@example.com'],
+                         'phones' => [],
+                         'websites' => [],
+                         'social_media' => []
+                     ],
+                     'metadata' => ['sources_used' => ['bulk']]
+                 ]);
+        });
+
+        $results = $this->enrichmentService->bulkEnrichProspectWebContacts($prospects, [
+            'triggered_by' => 'bulk',
+            'max_processing' => 5
+        ]);
+
+        $this->assertCount(3, $results['processed']);
+        $this->assertEmpty($results['skipped']);
+        $this->assertEmpty($results['errors']);
+
+        // Vérifier que tous les prospects ont été traités
+        foreach ($prospects as $prospect) {
+            $this->assertDatabaseHas('prospect_enrichment_history', [
+                'prospect_id' => $prospect->id,
+                'status' => 'completed',
+                'triggered_by' => 'bulk'
+            ]);
+        }
+    }
+
+    public function test_bulk_enrichment_respects_max_processing_limit()
+    {
+        // Créer 5 prospects éligibles
+        $prospects = collect();
+        for ($i = 1; $i <= 5; $i++) {
+            $prospectEloquent = ProspectEloquentFactory::new()->create([
+                'name' => "Prospect $i",
+                'company' => "Company $i",
+                'contact_info' => [],
+                'last_enrichment_at' => null
+            ]);
+            $prospects->push($prospectEloquent->toDomainModel());
+        }
+
+        // Mock pour seulement 3 appels (limite max_processing)
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->times(3)
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['limited@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $results = $this->enrichmentService->bulkEnrichProspectWebContacts($prospects, [
+            'triggered_by' => 'user',
+            'max_processing' => 3
+        ]);
+
+        $this->assertCount(3, $results['processed']);
+        $this->assertCount(2, $results['skipped']);
+        $this->assertEquals('max_processing_reached', $results['skipped'][0]['reason']);
+    }
+
+    public function test_bulk_enrichment_handles_mixed_results()
+    {
+        // Créer des prospects avec différents états
+        $eligibleProspect = ProspectEloquentFactory::new()->create([
+            'name' => 'Eligible',
+            'contact_info' => [],
+            'last_enrichment_at' => null
+        ]);
+
+        $recentProspect = ProspectEloquentFactory::new()->create([
+            'name' => 'Recent',
+            'contact_info' => ['email' => 'recent@example.com'],
+            'last_enrichment_at' => Carbon::now()->subDays(5)
+        ]);
+
+        $prospects = collect([
+            $eligibleProspect->toDomainModel(),
+            $recentProspect->toDomainModel()
+        ]);
+
+        // Mock pour un seul appel (prospect éligible)
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['mixed@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $results = $this->enrichmentService->bulkEnrichProspectWebContacts($prospects, [
+            'triggered_by' => 'user'
+        ]);
+
+        $this->assertCount(1, $results['processed']);
+        $this->assertCount(1, $results['skipped']);
+        $this->assertEquals('not_eligible', $results['skipped'][0]['reason']);
+    }
+
+    public function test_enrichment_updates_completeness_score()
+    {
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'Score Test',
+            'company' => 'Test Company',
+            'contact_info' => [],
+            'address' => null,
+            'data_completeness_score' => 30 // Score initial faible
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        // Mock avec enrichissement réussi
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['score@example.com'],
+                         'phones' => ['+1234567890'],
+                         'websites' => ['https://score-company.com'],
+                         'social_media' => []
+                     ],
+                     'metadata' => []
+                 ]);
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect);
+
+        // Vérifier que le score a été recalculé et amélioré
+        $prospectEloquent->refresh();
+        $this->assertGreaterThan(30, $prospectEloquent->data_completeness_score);
+        $this->assertGreaterThan(70, $prospectEloquent->data_completeness_score); // Avec email + tel + website
+    }
+
+    public function test_enrichment_history_tracking()
+    {
+        $prospectEloquent = ProspectEloquentFactory::new()->create([
+            'name' => 'History Test',
+            'contact_info' => []
+        ]);
+
+        $prospect = $prospectEloquent->toDomainModel();
+
+        $this->mock(WebEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => ['emails' => ['history@example.com']],
+                     'metadata' => [
+                         'sources_used' => ['duckduckgo', 'google'],
+                         'execution_time' => 3.2,
+                         'total_requests' => 5
+                     ]
+                 ]);
+        });
+
+        $result = $this->enrichmentService->enrichProspectWebContacts($prospect, [
+            'triggered_by' => 'user',
+            'user_agent' => 'Test Bot'
+        ]);
+
+        // Vérifier l'historique détaillé
+        $history = ProspectEnrichmentHistoryEloquent::where('prospect_id', $prospect->id)->first();
+        
+        $this->assertNotNull($history);
+        $this->assertEquals('completed', $history->status);
+        $this->assertEquals('history_test', $history->triggered_by);
+        $this->assertNotNull($history->started_at);
+        $this->assertNotNull($history->completed_at);
+        $this->assertEquals(3.2, $history->execution_time);
+        
+        // Vérifier les métadonnées JSON
+        $executionDetails = $history->execution_details;
+        $this->assertIsArray($executionDetails['sources_used']);
+        $this->assertContains('duckduckgo', $executionDetails['sources_used']);
+        $this->assertEquals(5, $executionDetails['total_requests']);
+        
+        // Vérifier les résultats
+        $results = $history->results_data;
+        $this->assertCount(1, $results['emails']);
+        $this->assertEquals('history@example.com', $results['emails'][0]);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
+    }
+}

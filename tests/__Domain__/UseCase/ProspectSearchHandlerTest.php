@@ -205,18 +205,18 @@ class ProspectSearchHandlerTest extends TestCase
         $input = new Input(
             userId: 1,
             query: 'restaurant',
-            sources: ['google_maps', 'pages_jaunes'],
+            sources: ['google_maps', 'demo'],
             saveSearch: false
         );
 
         $mockProspects = [
             ProspectFactory::createFromApiData(['name' => 'Rest 1'], 1, 'google_maps'),
-            ProspectFactory::createFromApiData(['name' => 'Rest 2'], 1, 'pages_jaunes')
+            ProspectFactory::createFromApiData(['name' => 'Rest 2'], 1, 'demo')
         ];
 
         $this->enrichmentService
             ->method('searchProspects')
-            ->with(1, 'restaurant', [], ['google_maps', 'pages_jaunes'])
+            ->with(1, 'restaurant', [], ['google_maps', 'demo'])
             ->willReturn($mockProspects);
 
         $this->enrichmentService

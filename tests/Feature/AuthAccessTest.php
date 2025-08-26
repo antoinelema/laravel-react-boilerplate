@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class AuthAccessTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
 
     public function test_guest_cannot_access_protected_route()

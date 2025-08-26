@@ -19,6 +19,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append:[
             HandleInertiaRequests::class,
         ]);
+        
+        // Sanctum middleware for API
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+        
+        $middleware->alias([
+            'search.limit' => \App\Http\Middleware\SearchLimitMiddleware::class,
+            'premium' => \App\Http\Middleware\PremiumMiddleware::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin.web' => \App\Http\Middleware\AdminWebMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

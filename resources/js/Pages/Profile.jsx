@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import UpdateUserForm from '../components/form/user/update-form';
 import { Button } from '@/components/ui/button';
+import { router } from '@inertiajs/react';
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
@@ -37,8 +38,26 @@ export default function ProfilePage() {
   }
 
   const handleLogout = async () => {
-    await fetch('/logout', { method: 'POST', credentials: 'include' });
-    Inertia.visit('/login');
+    try {
+      const response = await fetch('/logout', { 
+        method: 'POST', 
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        }
+      });
+      
+      if (response.ok) {
+        router.visit('/login');
+      } else {
+        throw new Error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if logout request failed
+      router.visit('/login');
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;

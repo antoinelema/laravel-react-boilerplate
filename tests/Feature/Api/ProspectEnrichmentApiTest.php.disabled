@@ -1,0 +1,542 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use App\__Infrastructure__\Eloquent\ProspectEloquent;
+use App\__Infrastructure__\Eloquent\UserEloquent;
+use Database\Factories\ProspectEloquentFactory;
+use App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+use Mockery;
+
+class ProspectEnrichmentApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private UserEloquent $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        // Créer un utilisateur premium pour les tests
+        $this->user = \Database\Factories\UserFactory::new()->create([
+            'email' => 'test@example.com',
+            'subscription_type' => 'premium'
+        ]);
+
+        // Authentifier l'utilisateur
+        Sanctum::actingAs($this->user);
+    }
+
+    public function test_get_enrichment_eligibility_returns_correct_data()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'John Doe',
+            'company' => 'Test Company',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null,
+            'data_completeness_score' => 45
+        ]);
+
+        $response = $this->getJson("/api/v1/prospects/{$prospect->id}/enrichment-eligibility");
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'is_eligible' => true,
+                        'reason' => 'never_enriched',
+                        'priority' => 'high',
+                        'completeness_score' => 45
+                    ]
+                ]);
+    }
+
+    public function test_get_enrichment_eligibility_for_ineligible_prospect()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Complete User',
+            'email' => 'complete@example.com',
+            'telephone' => '+1234567890',
+            'last_enrichment_at' => Carbon::now()->subDays(10),
+            'data_completeness_score' => 90
+        ]);
+
+        $response = $this->getJson("/api/v1/prospects/{$prospect->id}/enrichment-eligibility");
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'is_eligible' => false,
+                        'reason' => 'recently_enriched',
+                        'completeness_score' => 90
+                    ]
+                ]);
+    }
+
+    public function test_enrich_prospect_successfully()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Enrichable User',
+            'company' => 'Enrichable Company',
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        // Mock le service d'enrichissement
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => true,
+                     'contacts' => [
+                         'emails' => ['enriched@example.com'],
+                         'phones' => ['+9876543210'],
+                         'websites' => ['https://enriched.com'],
+                         'social_media' => []
+                     ],
+                     'metadata' => [
+                         'sources_used' => ['duckduckgo'],
+                         'execution_time' => 2.3
+                     ]
+                 ]);
+        });
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich", [
+            'force' => false,
+            'max_contacts' => 10
+        ]);
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'contacts' => [
+                            'emails' => ['enriched@example.com'],
+                            'phones' => ['+9876543210']
+                        ]
+                    ]
+                ]);
+    }
+
+    public function test_enrich_prospect_with_force_mode()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Complete User',
+            'email' => 'existing@example.com',
+            'telephone' => '+1111111111',
+            'last_enrichment_at' => Carbon::now()->subDays(5),
+            'data_completeness_score' => 95
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->with(
+                     \Mockery::type('App\__Domain__\Data\Prospect\Prospect'),
+                     \Mockery::on(function ($options) {
+                         return $options['force'] === true;
+                     })
+                 )
+                 ->andReturn([
+                     'success' => true,
+                     'forced' => true,
+                     'contacts' => ['emails' => ['forced@example.com']],
+                     'metadata' => []
+                 ]);
+        });
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich", [
+            'force' => true
+        ]);
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'forced' => true,
+                        'contacts' => [
+                            'emails' => ['forced@example.com']
+                        ]
+                    ]
+                ]);
+    }
+
+    public function test_enrich_prospect_fails_when_not_eligible()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'enrichment_blacklisted_at' => Carbon::now()
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('enrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'success' => false,
+                     'reason' => 'not_eligible'
+                 ]);
+        });
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich");
+
+        $response->assertUnprocessableEntity()
+                ->assertJson([
+                    'success' => false,
+                    'message' => 'Prospect not eligible for enrichment',
+                    'reason' => 'not_eligible'
+                ]);
+    }
+
+    public function test_bulk_enrich_prospects_successfully()
+    {
+        $prospects = collect();
+        for ($i = 1; $i <= 3; $i++) {
+            $prospects->push(ProspectEloquentFactory::new()->create([
+                'user_id' => $this->user->id,
+                'name' => "Bulk Prospect $i",
+                'email' => null,
+                'telephone' => null,
+                'last_enrichment_at' => null
+            ]));
+        }
+
+        $prospectIds = $prospects->pluck('id')->toArray();
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('bulkEnrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'processed' => [
+                         ['prospect_id' => 1, 'contacts_found' => 2],
+                         ['prospect_id' => 2, 'contacts_found' => 1],
+                         ['prospect_id' => 3, 'contacts_found' => 3]
+                     ],
+                     'skipped' => [],
+                     'errors' => []
+                 ]);
+        });
+
+        $response = $this->postJson('/api/v1/prospects/bulk-enrich', [
+            'prospect_ids' => $prospectIds,
+            'max_processing' => 5
+        ]);
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'processed' => 3,
+                        'skipped' => 0,
+                        'errors' => 0
+                    ]
+                ]);
+    }
+
+    public function test_bulk_enrich_with_mixed_results()
+    {
+        $eligibleProspect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Eligible',
+            'email' => null,
+            'last_enrichment_at' => null
+        ]);
+
+        $ineligibleProspect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'name' => 'Ineligible',
+            'enrichment_blacklisted_at' => Carbon::now()
+        ]);
+
+        $this->mock(ProspectEnrichmentService::class, function ($mock) {
+            $mock->shouldReceive('bulkEnrichProspectWebContacts')
+                 ->once()
+                 ->andReturn([
+                     'processed' => [
+                         ['prospect_id' => 1, 'contacts_found' => 2]
+                     ],
+                     'skipped' => [
+                         ['prospect_id' => 2, 'reason' => 'blacklisted']
+                     ],
+                     'errors' => []
+                 ]);
+        });
+
+        $response = $this->postJson('/api/v1/prospects/bulk-enrich', [
+            'prospect_ids' => [$eligibleProspect->id, $ineligibleProspect->id]
+        ]);
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'processed' => 1,
+                        'skipped' => 1,
+                        'errors' => 0
+                    ]
+                ]);
+    }
+
+    public function test_get_enrichment_history()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        // Créer quelques entrées d'historique
+        $prospect->enrichmentHistory()->create([
+            'status' => 'completed',
+            'triggered_by' => 'manual',
+            'started_at' => Carbon::now()->subHours(2),
+            'completed_at' => Carbon::now()->subHours(2)->addMinutes(3),
+            'execution_time' => 180.5,
+            'contacts_found' => 2,
+            'execution_details' => ['sources_used' => ['duckduckgo']],
+            'results_data' => ['emails' => ['test@example.com']]
+        ]);
+
+        $response = $this->getJson("/api/v1/prospects/{$prospect->id}/enrichment-history");
+
+        $response->assertOk()
+                ->assertJsonStructure([
+                    'success',
+                    'data' => [
+                        'history' => [
+                            '*' => [
+                                'id',
+                                'status',
+                                'triggered_by',
+                                'started_at',
+                                'completed_at',
+                                'execution_time',
+                                'contacts_found',
+                                'execution_details',
+                                'results_data'
+                            ]
+                        ]
+                    ]
+                ]);
+    }
+
+    public function test_blacklist_enrichment()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'enrichment_blacklisted_at' => null
+        ]);
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/blacklist-enrichment");
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'message' => 'Enrichment blacklisted for prospect'
+                ]);
+
+        // Vérifier que le prospect est blacklisté
+        $prospect->refresh();
+        $this->assertNotNull($prospect->enrichment_blacklisted_at);
+    }
+
+    public function test_toggle_auto_enrichment()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'auto_enrich_enabled' => true
+        ]);
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/toggle-auto-enrichment");
+
+        $response->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'auto_enrich_enabled' => false
+                    ]
+                ]);
+
+        // Vérifier la base de données
+        $prospect->refresh();
+        $this->assertFalse($prospect->auto_enrich_enabled);
+
+        // Basculer à nouveau
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/toggle-auto-enrichment");
+
+        $response->assertOk()
+                ->assertJson([
+                    'data' => [
+                        'auto_enrich_enabled' => true
+                    ]
+                ]);
+    }
+
+    public function test_get_enrichment_stats()
+    {
+        // Créer des prospects avec différents états
+        ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'email' => null,
+            'telephone' => null,
+            'last_enrichment_at' => null
+        ]); // Éligible
+
+        ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'email' => 'complete@example.com',
+            'telephone' => '+1234567890',
+            'data_completeness_score' => 95
+        ]); // Complet
+
+        ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id,
+            'enrichment_blacklisted_at' => Carbon::now()
+        ]); // Blacklisté
+
+        $response = $this->getJson('/api/v1/prospects/enrichment-stats');
+
+        $response->assertOk()
+                ->assertJsonStructure([
+                    'success',
+                    'data' => [
+                        'total_prospects',
+                        'eligible_for_enrichment',
+                        'complete_data',
+                        'recently_enriched',
+                        'never_enriched',
+                        'enrichment_pending',
+                        'enrichment_failed',
+                        'blacklisted',
+                        'completion_rate',
+                        'enrichment_coverage'
+                    ]
+                ])
+                ->assertJson([
+                    'data' => [
+                        'total_prospects' => 3,
+                        'eligible_for_enrichment' => 1,
+                        'complete_data' => 1,
+                        'blacklisted' => 1,
+                        'never_enriched' => 2
+                    ]
+                ]);
+    }
+
+    public function test_unauthorized_access_returns_401()
+    {
+        // Déconnecter l'utilisateur
+        $this->app['auth']->forgetGuards();
+
+        $prospect = ProspectEloquent::factory()->create();
+
+        $response = $this->getJson("/api/v1/prospects/{$prospect->id}/enrichment-eligibility");
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_free_user_cannot_access_enrichment_endpoints()
+    {
+        // Créer un utilisateur gratuit
+        $freeUser = \Database\Factories\UserFactory::new()->create([
+            'subscription_type' => 'free'
+        ]);
+
+        Sanctum::actingAs($freeUser);
+
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $freeUser->id
+        ]);
+
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich");
+
+        $response->assertForbidden();
+    }
+
+    public function test_user_cannot_access_other_users_prospects()
+    {
+        $otherUser = \Database\Factories\UserFactory::new()->create([
+            'subscription_type' => 'premium'
+        ]);
+
+        $otherProspect = ProspectEloquentFactory::new()->create([
+            'user_id' => $otherUser->id
+        ]);
+
+        $response = $this->getJson("/api/v1/prospects/{$otherProspect->id}/enrichment-eligibility");
+
+        $response->assertNotFound();
+    }
+
+    public function test_enrichment_validation_rules()
+    {
+        $prospect = ProspectEloquentFactory::new()->create([
+            'user_id' => $this->user->id
+        ]);
+
+        // Test avec max_contacts invalide
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich", [
+            'max_contacts' => 'invalid'
+        ]);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['max_contacts']);
+
+        // Test avec max_contacts hors limites
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich", [
+            'max_contacts' => 100
+        ]);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['max_contacts']);
+
+        // Test avec force invalide
+        $response = $this->postJson("/api/v1/prospects/{$prospect->id}/enrich", [
+            'force' => 'not_boolean'
+        ]);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['force']);
+    }
+
+    public function test_bulk_enrichment_validation()
+    {
+        // Test sans prospect_ids
+        $response = $this->postJson('/api/v1/prospects/bulk-enrich', []);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['prospect_ids']);
+
+        // Test avec trop de prospects
+        $response = $this->postJson('/api/v1/prospects/bulk-enrich', [
+            'prospect_ids' => range(1, 101) // Plus que la limite autorisée
+        ]);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['prospect_ids']);
+
+        // Test avec max_processing invalide
+        $response = $this->postJson('/api/v1/prospects/bulk-enrich', [
+            'prospect_ids' => [1, 2, 3],
+            'max_processing' => -1
+        ]);
+
+        $response->assertUnprocessableEntity()
+                ->assertJsonValidationErrors(['max_processing']);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
+    }
+}

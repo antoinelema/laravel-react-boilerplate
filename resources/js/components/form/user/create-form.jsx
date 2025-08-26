@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { handleApiError } from '@/lib/api';
+import { handleApiError } from '@/lib/secureApi';
 
 export default function CreateUserForm({ onSuccess, onError, loading: loadingProp }) {
   const [form, setForm] = useState({ name: '', firstname: '', email: '', password: '', password_confirmation: '' });

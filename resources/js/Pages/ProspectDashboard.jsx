@@ -2,19 +2,18 @@ import React, { useState, useEffect } from 'react'
 import { Head } from '@inertiajs/react'
 import Layout from './layout'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
-    Loader2, Search, MapPin, Phone, Mail, Globe, Star, 
-    Filter, Plus, Edit, Trash2, Users, TrendingUp, MessageSquare
-} from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api'
+import { secureApiClient } from '@/lib/secureApi'
+import { ProspectStats } from './components/ProspectStats'
+import { ProspectFilters } from './components/ProspectFilters'
+import { CategoryTabs } from './components/CategoryTabs'
+import { ProspectGrid } from './components/ProspectGrid'
+import { EmptyState } from './components/EmptyState'
+import { 
+    BulkEnrichmentButton
+ } from './components/EnrichmentButton'
+import { useEnrichmentStats } from '../hooks/useEnrichmentEligibility'
 
 export default function ProspectDashboard() {
     const [prospects, setProspects] = useState([])
@@ -25,7 +24,9 @@ export default function ProspectDashboard() {
         status: '',
         sector: '',
         city: '',
-        min_score: ''
+        min_score: '',
+        enrichment_status: '',
+        enrichment_eligibility: ''
     })
     const [stats, setStats] = useState({
         total: 0,
@@ -33,22 +34,34 @@ export default function ProspectDashboard() {
         bySector: {},
         averageScore: 0
     })
+    const [categories, setCategories] = useState([])
+    const [activeCategoryId, setActiveCategoryId] = useState(null)
+    const [selectedProspects, setSelectedProspects] = useState([])
+    
+    // Hook d'enrichissement pour les statistiques
+    const enrichmentStats = useEnrichmentStats()
 
     useEffect(() => {
+        fetchCategories()
         fetchProspects()
     }, [])
 
     useEffect(() => {
         applyFilters()
-    }, [searchTerm, filters, prospects])
+    }, [searchTerm, filters, prospects, activeCategoryId])
+
+    useEffect(() => {
+        if (prospects.length > 0) {
+            calculateStats(prospects)
+        }
+    }, [activeCategoryId, prospects])
 
     const fetchProspects = async () => {
         setIsLoading(true)
         try {
-            const data = await apiClient.get('/api/v1/prospects')
+            const data = await secureApiClient.get('/api/v1/prospects')
             setProspects(data.data.prospects)
             calculateStats(data.data.prospects)
-
         } catch (error) {
             toast.error(error.message || 'Erreur lors du chargement')
         } finally {
@@ -56,22 +69,52 @@ export default function ProspectDashboard() {
         }
     }
 
+    const fetchCategories = async () => {
+        try {
+            const data = await secureApiClient.get('/api/v1/prospect-categories')
+            setCategories(data.data.categories)
+        } catch (error) {
+            toast.error('Erreur lors du chargement des catégories')
+        }
+    }
+
+    const getCategoriesWithCounts = () => {
+        return categories.map(category => ({
+            ...category,
+            prospects_count: prospects.filter(prospect => 
+                prospect.categories && 
+                prospect.categories.some(cat => cat.id === category.id)
+            ).length
+        }))
+    }
+
+    const getProspectsByCategory = (prospectsData) => {
+        if (activeCategoryId === null) {
+            return prospectsData
+        } else if (activeCategoryId === 0) {
+            return prospectsData.filter(prospect => 
+                !prospect.categories || prospect.categories.length === 0
+            )
+        } else {
+            return prospectsData.filter(prospect => 
+                prospect.categories && 
+                prospect.categories.some(cat => cat.id === activeCategoryId)
+            )
+        }
+    }
+
     const calculateStats = (prospectsData) => {
-        const total = prospectsData.length
+        const categoryFiltered = getProspectsByCategory(prospectsData)
+        const total = categoryFiltered.length
         const byStatus = {}
         const bySector = {}
         let totalScore = 0
 
-        prospectsData.forEach(prospect => {
-            // Statistiques par statut
+        categoryFiltered.forEach(prospect => {
             byStatus[prospect.status] = (byStatus[prospect.status] || 0) + 1
-            
-            // Statistiques par secteur
             if (prospect.sector) {
                 bySector[prospect.sector] = (bySector[prospect.sector] || 0) + 1
             }
-            
-            // Score moyen
             totalScore += prospect.relevance_score
         })
 
@@ -86,6 +129,22 @@ export default function ProspectDashboard() {
     const applyFilters = () => {
         let filtered = [...prospects]
 
+        // Filtre par catégorie
+        if (activeCategoryId !== null) {
+            if (activeCategoryId === 0) {
+                // "Sans catégorie" - prospects sans catégories
+                filtered = filtered.filter(prospect => 
+                    !prospect.categories || prospect.categories.length === 0
+                )
+            } else {
+                // Catégorie spécifique
+                filtered = filtered.filter(prospect => 
+                    prospect.categories && 
+                    prospect.categories.some(cat => cat.id === activeCategoryId)
+                )
+            }
+        }
+
         // Filtre par terme de recherche
         if (searchTerm) {
             const term = searchTerm.toLowerCase()
@@ -97,7 +156,7 @@ export default function ProspectDashboard() {
             )
         }
 
-        // Filtres spécifiques
+        // Autres filtres
         if (filters.status) {
             filtered = filtered.filter(prospect => prospect.status === filters.status)
         }
@@ -114,6 +173,61 @@ export default function ProspectDashboard() {
             filtered = filtered.filter(prospect => prospect.relevance_score >= parseInt(filters.min_score))
         }
 
+        // Filtres d'enrichissement
+        if (filters.enrichment_status) {
+            filtered = filtered.filter(prospect => {
+                switch (filters.enrichment_status) {
+                    case 'never_enriched':
+                        return !prospect.last_enrichment_at
+                    case 'recently_enriched':
+                        if (!prospect.last_enrichment_at) return false
+                        const enrichedAt = new Date(prospect.last_enrichment_at)
+                        const thirtyDaysAgo = new Date()
+                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+                        return enrichedAt > thirtyDaysAgo
+                    case 'needs_refresh':
+                        if (!prospect.last_enrichment_at) return true
+                        const lastEnriched = new Date(prospect.last_enrichment_at)
+                        const ninetyDaysAgo = new Date()
+                        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+                        return lastEnriched < ninetyDaysAgo
+                    case 'complete_data':
+                        return prospect.data_completeness_score >= 80
+                    case 'incomplete_data':
+                        return prospect.data_completeness_score < 80
+                    case 'has_contacts':
+                        return prospect.email && prospect.telephone
+                    case 'missing_contacts':
+                        return !prospect.email || !prospect.telephone
+                    default:
+                        return true
+                }
+            })
+        }
+
+        if (filters.enrichment_eligibility) {
+            // Ce filtre nécessiterait d'appeler l'API d'éligibilité pour chaque prospect
+            // Pour l'instant, on fait un filtrage basique
+            filtered = filtered.filter(prospect => {
+                switch (filters.enrichment_eligibility) {
+                    case 'eligible':
+                        return !prospect.enrichment_blacklisted_at && 
+                               prospect.auto_enrich_enabled !== false &&
+                               (!prospect.last_enrichment_at || 
+                                new Date(prospect.last_enrichment_at) < new Date(Date.now() - 30*24*60*60*1000))
+                    case 'not_eligible':
+                        return prospect.enrichment_blacklisted_at || 
+                               prospect.auto_enrich_enabled === false ||
+                               (prospect.last_enrichment_at && 
+                                new Date(prospect.last_enrichment_at) >= new Date(Date.now() - 30*24*60*60*1000))
+                    case 'blacklisted':
+                        return prospect.enrichment_blacklisted_at
+                    default:
+                        return true
+                }
+            })
+        }
+
         setFilteredProspects(filtered)
     }
 
@@ -123,14 +237,18 @@ export default function ProspectDashboard() {
         }
 
         try {
-            await apiClient.delete(`/api/v1/prospects/${prospectId}`)
-
+            await secureApiClient.delete(`/api/v1/prospects/${prospectId}`)
             toast.success('Prospect supprimé avec succès')
             setProspects(prev => prev.filter(p => p.id !== prospectId))
-
         } catch (error) {
             toast.error(error.message || 'Erreur lors de la suppression')
         }
+    }
+
+    const handleProspectUpdate = (prospectId, updates) => {
+        setProspects(prev => prev.map(p => 
+            p.id === prospectId ? { ...p, ...updates } : p
+        ))
     }
 
     const updateFilter = (key, value) => {
@@ -146,37 +264,50 @@ export default function ProspectDashboard() {
             status: '',
             sector: '',
             city: '',
-            min_score: ''
+            min_score: '',
+            enrichment_status: '',
+            enrichment_eligibility: ''
         })
     }
 
-    const handleProspectUpdate = (prospectId, updates) => {
-        setProspects(prev => prev.map(p => 
-            p.id === prospectId ? { ...p, ...updates } : p
-        ))
-    }
-
     const getUniqueValues = (field) => {
-        const values = prospects
+        return prospects
             .map(p => p[field])
             .filter(value => value && value.trim())
             .filter((value, index, self) => self.indexOf(value) === index)
             .sort()
-        return values
     }
 
-    const statusOptions = ['new', 'contacted', 'interested', 'qualified', 'converted', 'rejected']
-    const sectorOptions = getUniqueValues('sector')
-    const cityOptions = getUniqueValues('city')
+    const handleBulkEnrichmentComplete = (prospects, results) => {
+        toast.success(`Enrichissement terminé : ${results.processed?.length || 0} prospects traités`)
+        // Rafraîchir la liste des prospects
+        fetchProspects()
+        // Désélectionner les prospects
+        setSelectedProspects([])
+        // Rafraîchir les stats d'enrichissement
+        enrichmentStats.refresh()
+    }
+
+    const handleBulkEnrichmentStart = (prospects) => {
+        toast.info(`Démarrage de l'enrichissement pour ${prospects.length} prospects...`)
+    }
+
+    const handleProspectSelectionChange = (selectedIds) => {
+        setSelectedProspects(
+            prospects.filter(prospect => selectedIds.includes(prospect.id))
+        )
+    }
 
     if (isLoading) {
         return (
             <Layout>
                 <Head title="Mes Prospects" />
-                <div className="container mx-auto px-4 py-6">
+                <div className="w-full px-6 py-6">
                     <div className="flex items-center justify-center h-64">
-                        <Loader2 className="h-8 w-8 animate-spin" />
-                        <span className="ml-2">Chargement des prospects...</span>
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                            <span>Chargement des prospects...</span>
+                        </div>
                     </div>
                 </div>
             </Layout>
@@ -187,8 +318,7 @@ export default function ProspectDashboard() {
         <Layout>
             <Head title="Mes Prospects" />
             
-            <div className="container mx-auto px-4 py-6">
-                {/* En-tête */}
+            <div className="w-full px-6 py-6">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">Mes Prospects</h1>
@@ -203,505 +333,67 @@ export default function ProspectDashboard() {
                     </Button>
                 </div>
 
-                {/* Statistiques */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-2xl font-bold">{stats.total}</CardTitle>
-                            <CardDescription className="flex items-center">
-                                <Users className="mr-1 h-4 w-4" />
-                                Total prospects
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-2xl font-bold">
-                                {stats.byStatus.converted || 0}
-                            </CardTitle>
-                            <CardDescription className="flex items-center text-green-600">
-                                <TrendingUp className="mr-1 h-4 w-4" />
-                                Convertis
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-2xl font-bold">
-                                {stats.byStatus.qualified || 0}
-                            </CardTitle>
-                            <CardDescription className="flex items-center text-blue-600">
-                                <Star className="mr-1 h-4 w-4" />
-                                Qualifiés
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-2xl font-bold">{stats.averageScore}</CardTitle>
-                            <CardDescription>Score moyen</CardDescription>
-                        </CardHeader>
-                    </Card>
-                </div>
+                <CategoryTabs 
+                    categories={getCategoriesWithCounts()}
+                    activeCategoryId={activeCategoryId}
+                    onCategoryChange={setActiveCategoryId}
+                    onCategoriesUpdate={setCategories}
+                    stats={stats}
+                />
 
-                {/* Filtres et recherche */}
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center">
-                            <Filter className="mr-2 h-5 w-5" />
-                            Filtres et recherche
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="search">Recherche</Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                                <Input
-                                    id="search"
-                                    placeholder="Rechercher par nom, entreprise, secteur, ville..."
-                                    className="pl-10"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div>
-                                <Label htmlFor="status-filter">Statut</Label>
-                                <select
-                                    id="status-filter"
-                                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={filters.status}
-                                    onChange={(e) => updateFilter('status', e.target.value)}
-                                >
-                                    <option value="">Tous les statuts</option>
-                                    {statusOptions.map(status => (
-                                        <option key={status} value={status}>
-                                            {status}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <Label htmlFor="sector-filter">Secteur</Label>
-                                <select
-                                    id="sector-filter"
-                                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={filters.sector}
-                                    onChange={(e) => updateFilter('sector', e.target.value)}
-                                >
-                                    <option value="">Tous les secteurs</option>
-                                    {sectorOptions.map(sector => (
-                                        <option key={sector} value={sector}>
-                                            {sector}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <Label htmlFor="city-filter">Ville</Label>
-                                <select
-                                    id="city-filter"
-                                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                    value={filters.city}
-                                    onChange={(e) => updateFilter('city', e.target.value)}
-                                >
-                                    <option value="">Toutes les villes</option>
-                                    {cityOptions.map(city => (
-                                        <option key={city} value={city}>
-                                            {city}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <Label htmlFor="score-filter">Score minimum</Label>
-                                <Input
-                                    id="score-filter"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    placeholder="Score min"
-                                    value={filters.min_score}
-                                    onChange={(e) => updateFilter('min_score', e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        
-                        <div className="flex justify-between items-center pt-2">
-                            <span className="text-sm text-gray-600">
-                                {filteredProspects.length} prospect(s) trouvé(s)
-                            </span>
-                            <Button variant="outline" onClick={clearFilters}>
-                                Effacer les filtres
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ProspectStats stats={stats} />
 
-                {/* Liste des prospects */}
-                {filteredProspects.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {filteredProspects.map((prospect) => (
-                            <ProspectDashboardCard
-                                key={prospect.id}
-                                prospect={prospect}
-                                onDelete={() => handleDeleteProspect(prospect.id)}
-                                onProspectUpdate={handleProspectUpdate}
+                <ProspectFilters 
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    filters={filters}
+                    onFilterChange={updateFilter}
+                    onClearFilters={clearFilters}
+                    prospects={prospects}
+                    filteredCount={filteredProspects.length}
+                    getUniqueValues={getUniqueValues}
+                    enrichmentStats={enrichmentStats}
+                />
+
+                {selectedProspects.length > 0 && (
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                                <span className="text-sm font-medium text-blue-900">
+                                    {selectedProspects.length} prospect{selectedProspects.length > 1 ? 's' : ''} sélectionné{selectedProspects.length > 1 ? 's' : ''}
+                                </span>
+                                <button
+                                    onClick={() => setSelectedProspects([])}
+                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    Désélectionner tout
+                                </button>
+                            </div>
+                            <BulkEnrichmentButton
+                                selectedProspects={selectedProspects}
+                                onBulkEnrichmentComplete={handleBulkEnrichmentComplete}
+                                onBulkEnrichmentStart={handleBulkEnrichmentStart}
                             />
-                        ))}
+                        </div>
                     </div>
+                )}
+
+                {filteredProspects.length > 0 ? (
+                    <ProspectGrid 
+                        prospects={filteredProspects}
+                        categories={getCategoriesWithCounts()}
+                        onDeleteProspect={handleDeleteProspect}
+                        onProspectUpdate={handleProspectUpdate}
+                        selectedProspects={selectedProspects}
+                        onSelectionChange={handleProspectSelectionChange}
+                        showEnrichment={true}
+                    />
                 ) : (
-                    <Card>
-                        <CardContent className="flex flex-col items-center justify-center py-12">
-                            <Users className="h-12 w-12 text-gray-400 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                Aucun prospect trouvé
-                            </h3>
-                            <p className="text-gray-500 text-center max-w-sm mb-4">
-                                {prospects.length === 0
-                                    ? "Vous n'avez pas encore de prospects. Commencez par en rechercher."
-                                    : "Aucun prospect ne correspond à vos critères de recherche."
-                                }
-                            </p>
-                            {prospects.length === 0 && (
-                                <Button asChild>
-                                    <a href="/prospects/search">
-                                        <Search className="mr-2 h-4 w-4" />
-                                        Rechercher des prospects
-                                    </a>
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <EmptyState 
+                        hasProspects={prospects.length > 0}
+                    />
                 )}
             </div>
         </Layout>
-    )
-}
-
-function ProspectDashboardCard({ prospect, onDelete, onProspectUpdate }) {
-    const [isDeleting, setIsDeleting] = useState(false)
-    const [notes, setNotes] = useState([])
-    const [isLoadingNotes, setIsLoadingNotes] = useState(false)
-    const [newNote, setNewNote] = useState('')
-    const [isAddingNote, setIsAddingNote] = useState(false)
-    const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false)
-
-    const handleDelete = async () => {
-        setIsDeleting(true)
-        try {
-            await onDelete()
-        } finally {
-            setIsDeleting(false)
-        }
-    }
-
-    const fetchNotes = async () => {
-        setIsLoadingNotes(true)
-        try {
-            const data = await apiClient.get(`/api/v1/prospects/${prospect.id}/notes`)
-            setNotes(data.data.notes || [])
-        } catch (error) {
-            toast.error('Erreur lors du chargement des notes')
-        } finally {
-            setIsLoadingNotes(false)
-        }
-    }
-
-    const handleAddNote = async () => {
-        if (!newNote.trim()) return
-
-        setIsAddingNote(true)
-        try {
-            const data = await apiClient.post(`/api/v1/prospects/${prospect.id}/notes`, {
-                content: newNote,
-                type: 'note'
-            })
-            const newNoteData = data.data.note
-            setNotes(prev => [newNoteData, ...prev])
-            setNewNote('')
-            
-            // Mettre à jour les informations du prospect avec la nouvelle note
-            if (onProspectUpdate) {
-                onProspectUpdate(prospect.id, {
-                    notes_count: (prospect.notes_count || 0) + 1,
-                    last_note: {
-                        content: newNoteData.content,
-                        created_at: newNoteData.created_at,
-                        type: newNoteData.type
-                    }
-                })
-            }
-            
-            toast.success('Note ajoutée avec succès')
-        } catch (error) {
-            toast.error('Erreur lors de l\'ajout de la note')
-        } finally {
-            setIsAddingNote(false)
-        }
-    }
-
-    const handleNotesDialog = () => {
-        setIsNotesDialogOpen(true)
-        if (notes.length === 0) {
-            fetchNotes()
-        }
-    }
-
-    const getStatusColor = (status) => {
-        const colors = {
-            'new': 'bg-blue-100 text-blue-800',
-            'contacted': 'bg-yellow-100 text-yellow-800',
-            'interested': 'bg-purple-100 text-purple-800',
-            'qualified': 'bg-green-100 text-green-800',
-            'converted': 'bg-emerald-100 text-emerald-800',
-            'rejected': 'bg-red-100 text-red-800'
-        }
-        return colors[status] || 'bg-gray-100 text-gray-800'
-    }
-
-    return (
-        <Card className="h-full">
-            <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                        <CardTitle className="text-lg mb-1">{prospect.name}</CardTitle>
-                        {prospect.company && (
-                            <CardDescription>{prospect.company}</CardDescription>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-1 ml-2">
-                        <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                        <span className="text-sm font-medium">{prospect.relevance_score}</span>
-                    </div>
-                </div>
-                
-                <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="secondary" className={getStatusColor(prospect.status)}>
-                        {prospect.status}
-                    </Badge>
-                    {prospect.sector && (
-                        <Badge variant="outline">
-                            {prospect.sector}
-                        </Badge>
-                    )}
-                </div>
-            </CardHeader>
-            
-            <CardContent className="space-y-3">
-                {/* Localisation */}
-                {(prospect.city || prospect.address) && (
-                    <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-gray-600">
-                            {prospect.address && <div>{prospect.address}</div>}
-                            {prospect.city && (
-                                <div>
-                                    {prospect.city}
-                                    {prospect.postal_code && ` ${prospect.postal_code}`}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Informations de contact */}
-                {prospect.contact_info && (
-                    <div className="space-y-2">
-                        {prospect.contact_info.phone && (
-                            <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4 text-gray-500" />
-                                <a 
-                                    href={`tel:${prospect.contact_info.phone}`}
-                                    className="text-sm hover:underline"
-                                >
-                                    {prospect.contact_info.phone}
-                                </a>
-                            </div>
-                        )}
-                        
-                        {prospect.contact_info.email && (
-                            <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4 text-gray-500" />
-                                <a
-                                    href={`mailto:${prospect.contact_info.email}`}
-                                    className="text-sm text-blue-600 hover:underline"
-                                >
-                                    {prospect.contact_info.email}
-                                </a>
-                            </div>
-                        )}
-                        
-                        {prospect.contact_info.website && (
-                            <div className="flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-gray-500" />
-                                <a
-                                    href={prospect.contact_info.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 hover:underline truncate"
-                                >
-                                    {prospect.contact_info.website}
-                                </a>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Aperçu des notes */}
-                {prospect.notes_count > 0 && (
-                    <div className="pt-2 border-t">
-                        <div className="flex items-center gap-2 mb-2">
-                            <MessageSquare className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-600">
-                                {prospect.notes_count} note{prospect.notes_count > 1 ? 's' : ''}
-                            </span>
-                        </div>
-                        {prospect.last_note && (
-                            <div className="bg-blue-50 p-2 rounded-md">
-                                <p className="text-xs text-gray-700 line-clamp-2">
-                                    {prospect.last_note.content}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    {new Date(prospect.last_note.created_at).toLocaleDateString('fr-FR', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="text-xs text-gray-500">
-                        {prospect.source && (
-                            <span>Source: {prospect.source}</span>
-                        )}
-                    </div>
-                    
-                    <div className="flex gap-2">
-                        <Dialog open={isNotesDialogOpen} onOpenChange={setIsNotesDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" size="sm" onClick={handleNotesDialog} className="relative">
-                                    <MessageSquare className="h-3 w-3" />
-                                    {prospect.notes_count > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                                            {prospect.notes_count > 9 ? '9+' : prospect.notes_count}
-                                        </span>
-                                    )}
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                                <DialogHeader>
-                                    <DialogTitle>Notes pour {prospect.name}</DialogTitle>
-                                    <DialogDescription>
-                                        Gérez les notes concernant ce prospect
-                                    </DialogDescription>
-                                </DialogHeader>
-                                
-                                <div className="space-y-4">
-                                    {/* Formulaire d'ajout de note */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="new-note">Nouvelle note</Label>
-                                        <Textarea
-                                            id="new-note"
-                                            placeholder="Saisissez votre note..."
-                                            value={newNote}
-                                            onChange={(e) => setNewNote(e.target.value)}
-                                            rows={3}
-                                        />
-                                        <Button
-                                            onClick={handleAddNote}
-                                            disabled={isAddingNote || !newNote.trim()}
-                                            size="sm"
-                                            className="w-full"
-                                        >
-                                            {isAddingNote ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                                    Ajout en cours...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Plus className="mr-2 h-3 w-3" />
-                                                    Ajouter la note
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-
-                                    {/* Liste des notes */}
-                                    <div className="space-y-2">
-                                        <Label>Notes existantes</Label>
-                                        {isLoadingNotes ? (
-                                            <div className="flex items-center justify-center py-4">
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                <span className="ml-2 text-sm">Chargement des notes...</span>
-                                            </div>
-                                        ) : notes.length > 0 ? (
-                                            <div className="max-h-40 overflow-y-auto space-y-2">
-                                                {notes.map((note) => (
-                                                    <div
-                                                        key={note.id}
-                                                        className="p-2 border rounded-md bg-gray-50 text-sm"
-                                                    >
-                                                        <p className="text-gray-800">{note.content}</p>
-                                                        <p className="text-xs text-gray-500 mt-1">
-                                                            {new Date(note.created_at).toLocaleDateString('fr-FR', {
-                                                                day: '2-digit',
-                                                                month: '2-digit',
-                                                                year: 'numeric',
-                                                                hour: '2-digit',
-                                                                minute: '2-digit'
-                                                            })}
-                                                        </p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-gray-500 py-4 text-center">
-                                                Aucune note pour ce prospect
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-
-                        <Button variant="outline" size="sm">
-                            <Edit className="h-3 w-3" />
-                        </Button>
-                        
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDelete}
-                            disabled={isDeleting}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                            {isDeleting ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                                <Trash2 className="h-3 w-3" />
-                            )}
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
     )
 }
