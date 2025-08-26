@@ -5,6 +5,7 @@ namespace Tests\Feature\Console;
 use App\Console\Commands\AutoEnrichProspects;
 use App\__Infrastructure__\Eloquent\ProspectEloquent;
 use App\__Infrastructure__\Eloquent\UserEloquent;
+use Database\Factories\ProspectEloquentFactory;
 use App\__Infrastructure__\Services\Enrichment\EnrichmentEligibilityService;
 use App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService;
 use Carbon\Carbon;
@@ -22,7 +23,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
     {
         parent::setUp();
         
-        $this->user = UserEloquent::factory()->create([
+        $this->user = \Database\Factories\UserFactory::new()->create([
             'subscription_type' => 'premium'
         ]);
     }
@@ -30,17 +31,16 @@ class AutoEnrichProspectsCommandTest extends TestCase
     public function test_dry_run_mode_shows_eligible_prospects_without_processing()
     {
         // Créer des prospects avec différents états
-        $eligibleProspect = ProspectEloquent::factory()->create([
+        $eligibleProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Eligible Prospect',
             'company' => 'Eligible Company',
-            'email' => null,
-            'telephone' => null,
+            'contact_info' => [],
             'last_enrichment_at' => null,
             'data_completeness_score' => 40
         ]);
 
-        $recentProspect = ProspectEloquent::factory()->create([
+        $recentProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Recent Prospect',
             'email' => 'recent@example.com',
@@ -69,7 +69,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
     {
         $eligibleProspects = collect();
         for ($i = 1; $i <= 3; $i++) {
-            $eligibleProspects->push(ProspectEloquent::factory()->create([
+            $eligibleProspects->push(ProspectEloquentFactory::new()->create([
                 'user_id' => $this->user->id,
                 'name' => "Prospect $i",
                 'company' => "Company $i",
@@ -113,7 +113,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_handles_enrichment_failures()
     {
-        $failingProspect = ProspectEloquent::factory()->create([
+        $failingProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Failing Prospect',
             'email' => null,
@@ -121,7 +121,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
             'last_enrichment_at' => null
         ]);
 
-        $successProspect = ProspectEloquent::factory()->create([
+        $successProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Success Prospect',
             'email' => null,
@@ -162,7 +162,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
     {
         // Créer 5 prospects éligibles
         for ($i = 1; $i <= 5; $i++) {
-            ProspectEloquent::factory()->create([
+            ProspectEloquentFactory::new()->create([
                 'user_id' => $this->user->id,
                 'name' => "Prospect $i",
                 'email' => null,
@@ -196,13 +196,13 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_filters_by_user_id()
     {
-        $targetUser = UserEloquent::factory()->create();
-        $otherUser = UserEloquent::factory()->create();
+        $targetUser = \Database\Factories\UserFactory::new()->create();
+        $otherUser = \Database\Factories\UserFactory::new()->create();
 
         // Prospects pour l'utilisateur cible
         $targetProspects = collect();
         for ($i = 1; $i <= 2; $i++) {
-            $targetProspects->push(ProspectEloquent::factory()->create([
+            $targetProspects->push(ProspectEloquentFactory::new()->create([
                 'user_id' => $targetUser->id,
                 'name' => "Target Prospect $i",
                 'email' => null,
@@ -212,7 +212,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
         }
 
         // Prospects pour un autre utilisateur
-        ProspectEloquent::factory()->create([
+        ProspectEloquentFactory::new()->create([
             'user_id' => $otherUser->id,
             'name' => 'Other User Prospect',
             'email' => null,
@@ -253,7 +253,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
     public function test_command_applies_force_refresh_days()
     {
         // Créer un prospect enrichi il y a 50 jours
-        $oldProspect = ProspectEloquent::factory()->create([
+        $oldProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Old Prospect',
             'email' => 'old@example.com',
@@ -283,7 +283,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_respects_max_attempts_limit()
     {
-        $maxAttemptsProspect = ProspectEloquent::factory()->create([
+        $maxAttemptsProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Max Attempts Prospect',
             'email' => null,
@@ -292,7 +292,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
             'last_enrichment_at' => Carbon::now()->subDays(35)
         ]);
 
-        $normalProspect = ProspectEloquent::factory()->create([
+        $normalProspect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Normal Prospect',
             'email' => null,
@@ -324,7 +324,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
     public function test_command_handles_no_eligible_prospects()
     {
         // Créer seulement des prospects non éligibles
-        ProspectEloquent::factory()->create([
+        ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'email' => 'complete@example.com',
             'telephone' => '+1234567890',
@@ -345,7 +345,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_shows_progress_bar_and_messages()
     {
-        $prospect = ProspectEloquent::factory()->create([
+        $prospect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'name' => 'Progress Test',
             'company' => 'Progress Company',
@@ -398,7 +398,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_exception_handling()
     {
-        $prospect = ProspectEloquent::factory()->create([
+        $prospect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'email' => null,
             'telephone' => null,
@@ -420,7 +420,7 @@ class AutoEnrichProspectsCommandTest extends TestCase
 
     public function test_command_provides_recommendations()
     {
-        $prospect = ProspectEloquent::factory()->create([
+        $prospect = ProspectEloquentFactory::new()->create([
             'user_id' => $this->user->id,
             'email' => null,
             'telephone' => null,

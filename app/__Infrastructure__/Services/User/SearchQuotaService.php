@@ -2,7 +2,7 @@
 
 namespace App\__Infrastructure__\Services\User;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 

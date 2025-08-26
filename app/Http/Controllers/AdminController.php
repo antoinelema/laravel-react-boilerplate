@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 use App\__Infrastructure__\Services\User\UserSubscriptionService;
 use App\__Infrastructure__\Services\User\SearchQuotaService;
 use Carbon\Carbon;
@@ -38,8 +38,7 @@ class AdminController extends Controller
         return Inertia::render('Admin/Dashboard', [
             'auth' => ['user' => auth()->user()],
             'stats' => $stats,
-            'recent_users' => User::with('subscriptions')
-                                 ->latest()
+            'recent_users' => User::latest()
                                  ->limit(10)
                                  ->get()
                                  ->map(function ($user) {
@@ -87,8 +86,7 @@ class AdminController extends Controller
             });
         }
 
-        $users = $query->with('subscriptions')
-                      ->latest()
+        $users = $query->latest()
                       ->paginate(50)
                       ->through(function ($user) {
                           return [
@@ -142,7 +140,7 @@ class AdminController extends Controller
                     'created_at' => $user->created_at,
                     'updated_at' => $user->updated_at,
                 ],
-                'subscriptions' => $user->subscriptions()->latest()->get(),
+                'subscriptions' => [], // Pas de table subscriptions séparée pour l'instant
                 'prospects_count' => $user->prospects()->count(),
             ]
         ]);

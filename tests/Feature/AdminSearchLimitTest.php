@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 use App\__Infrastructure__\Services\User\SearchQuotaService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class AdminSearchLimitTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     private SearchQuotaService $searchQuotaService;
 
@@ -99,13 +99,13 @@ class AdminSearchLimitTest extends TestCase
             'role' => 'user',
             'subscription_type' => 'free',
             'daily_searches_count' => 5, // À la limite
-            'daily_searches_reset_at' => now() // Éviter le reset automatique
+            'daily_searches_reset_at' => now()->addHour() // Futur pour éviter le reset
         ]);
 
         $admin = User::factory()->create([
             'role' => 'admin',
             'daily_searches_count' => 5, // Même nombre de recherches
-            'daily_searches_reset_at' => now()
+            'daily_searches_reset_at' => now()->addHour()
         ]);
 
         $regularUserCanSearch = $this->searchQuotaService->canUserSearch($regularUser);

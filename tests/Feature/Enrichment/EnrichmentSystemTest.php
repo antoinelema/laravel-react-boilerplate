@@ -7,7 +7,7 @@ use App\__Infrastructure__\Eloquent\ProspectEloquent;
 use App\__Infrastructure__\Services\Enrichment\EnrichmentEligibilityService;
 use Database\Factories\ProspectEloquentFactory;
 use Database\Factories\UserFactory;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 /**
@@ -15,7 +15,7 @@ use Tests\TestCase;
  */
 class EnrichmentSystemTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     public function test_system_can_calculate_completeness_scores()
     {

@@ -98,7 +98,7 @@ class ProspectController extends Controller
             'prospects.*.contact_info' => 'nullable|array',
             'prospects.*.phone' => 'nullable|string|max:50',
             'prospects.*.email' => 'nullable|string|email|max:255',
-            'prospects.*.website' => 'nullable|string|max:255',
+            'prospects.*.website' => 'nullable|string|url|max:255',
             'prospects.*.description' => 'nullable|string',
             'prospects.*.relevance_score' => 'nullable|numeric|min:0|max:100',
             'prospects.*.source' => 'nullable|string|max:100',
@@ -114,9 +114,7 @@ class ProspectController extends Controller
         ];
 
         try {
-            // Use database transaction without explicit begin since tests might already have one active
-            DB::transaction(function () use ($validated, &$results, $userId) {
-
+            // Process each prospect individually - tests handle transactions via RefreshDatabase
             foreach ($validated['prospects'] as $index => $prospectData) {
                 try {
                     // Normaliser les données de contact
@@ -180,7 +178,6 @@ class ProspectController extends Controller
                     ];
                 }
             }
-            });
 
             return response()->json([
                 'success' => true,

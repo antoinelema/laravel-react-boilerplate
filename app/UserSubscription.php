@@ -5,7 +5,7 @@ namespace App;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 
 class UserSubscription extends Model
 {

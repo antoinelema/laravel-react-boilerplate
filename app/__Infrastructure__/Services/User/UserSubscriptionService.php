@@ -2,7 +2,7 @@
 
 namespace App\__Infrastructure__\Services\User;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 use App\UserSubscription;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -33,9 +33,8 @@ class UserSubscriptionService
                 : $startsAt->copy()->addMonth();
         }
 
-        DB::beginTransaction();
-
-        try {
+        // Handle transaction safely - if we're already in a transaction (like during tests), don't start a new one
+        $callback = function () use ($user, $planType, $startsAt, $expiresAt, $amount, $paymentMethod, $externalSubscriptionId) {
             // Désactiver les anciens abonnements
             $this->deactivateUserSubscriptions($user);
 
@@ -60,8 +59,6 @@ class UserSubscriptionService
                 'daily_searches_reset_at' => now(),
             ]);
 
-            DB::commit();
-
             Log::info('Abonnement premium créé', [
                 'user_id' => $user->id,
                 'subscription_id' => $subscription->id,
@@ -70,15 +67,15 @@ class UserSubscriptionService
             ]);
 
             return $subscription;
+        };
 
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur lors de la création d\'abonnement premium', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-            throw $e;
+        // If we're already in a transaction (e.g., during tests), just execute the callback
+        if (DB::transactionLevel() > 0) {
+            return $callback();
         }
+        
+        // Otherwise, wrap in a transaction
+        return DB::transaction($callback);
     }
 
     /**
@@ -86,16 +83,12 @@ class UserSubscriptionService
      */
     public function cancelSubscription(User $user, ?string $reason = null): bool
     {
-        DB::beginTransaction();
-
-        try {
+        $callback = function () use ($user, $reason) {
             // Désactiver tous les abonnements actifs
             $cancelled = $this->deactivateUserSubscriptions($user, 'cancelled');
 
             // Downgrader l'utilisateur vers gratuit
             $user->downgradeToFree();
-
-            DB::commit();
 
             Log::info('Abonnement annulé', [
                 'user_id' => $user->id,
@@ -104,15 +97,15 @@ class UserSubscriptionService
             ]);
 
             return true;
+        };
 
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur lors de l\'annulation d\'abonnement', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-            return false;
+        // If we're already in a transaction (e.g., during tests), just execute the callback
+        if (DB::transactionLevel() > 0) {
+            return $callback();
         }
+        
+        // Otherwise, wrap in a transaction
+        return DB::transaction($callback);
     }
 
     /**

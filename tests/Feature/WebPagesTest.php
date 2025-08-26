@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class WebPagesTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     public function test_welcome_page_loads()
     {

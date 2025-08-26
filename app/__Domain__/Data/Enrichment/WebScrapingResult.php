@@ -78,7 +78,7 @@ class WebScrapingResult
     public function hasValidContacts(): bool
     {
         return !empty($this->contacts) && 
-               $this->validation->isValid() &&
+               $this->validation->isValid &&
                $this->success;
     }
 

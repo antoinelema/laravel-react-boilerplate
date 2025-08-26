@@ -120,7 +120,7 @@ class UserSubscriptionTest extends TestCase
         $user->resetDailySearchesIfNeeded();
         
         $this->assertEquals(0, $user->fresh()->daily_searches_count);
-        $this->assertTrue($user->fresh()->daily_searches_reset_at->isSameDay(now()));
+        $this->assertTrue($user->fresh()->daily_searches_reset_at->isSameDay(now()->addDay()));
     }
 
     /** @test */

@@ -70,24 +70,24 @@ class EnrichmentEligibilityService
         // Vérifications de base
         if ($prospectEloquent && $prospectEloquent->auto_enrich_enabled === false) {
             $reasons[] = 'Auto-enrichment disabled';
-            return $this->ineligibleResponse('disabled', $reasons, $prospect);
+            return $this->ineligibleResponse('disabled', $reasons, $prospect, null, null, $prospectEloquent);
         }
 
         if ($prospectEloquent && $prospectEloquent->enrichment_blacklisted_at) {
             $reasons[] = 'Prospect blacklisted on ' . $prospectEloquent->enrichment_blacklisted_at->format('Y-m-d');
-            return $this->ineligibleResponse('blacklisted', $reasons, $prospect);
+            return $this->ineligibleResponse('blacklisted', $reasons, $prospect, null, null, $prospectEloquent);
         }
 
         if ($prospectEloquent && $prospectEloquent->enrichment_status === 'pending') {
             $reasons[] = 'Enrichment currently in progress';
-            return $this->ineligibleResponse('in_progress', $reasons, $prospect);
+            return $this->ineligibleResponse('in_progress', $reasons, $prospect, null, null, $prospectEloquent);
         }
 
         // Vérification du score de complétude
         $completenessScore = $this->calculateCompletenessScore($prospect);
         if ($completenessScore >= $options['min_completeness_score']) {
             $reasons[] = "Data already complete (score: {$completenessScore}%)";
-            return $this->ineligibleResponse('complete_data', $reasons, $prospect, $completenessScore);
+            return $this->ineligibleResponse('complete_data', $reasons, $prospect, $completenessScore, null, $prospectEloquent);
         }
 
         // Vérification de la fraîcheur de l'enrichissement
@@ -96,7 +96,7 @@ class EnrichmentEligibilityService
             if ($daysSinceLastEnrichment < $options['refresh_after_days']) {
                 $nextEligible = $prospectEloquent->last_enrichment_at->addDays($options['refresh_after_days']);
                 $reasons[] = "Recently enriched {$daysSinceLastEnrichment} days ago";
-                return $this->ineligibleResponse('recently_enriched', $reasons, $prospect, $completenessScore, $nextEligible);
+                return $this->ineligibleResponse('recently_enriched', $reasons, $prospect, $completenessScore, $nextEligible, $prospectEloquent);
             }
         }
 
@@ -105,17 +105,17 @@ class EnrichmentEligibilityService
             $prospectEloquent->enrichment_status === 'failed') {
             $attempts = $prospectEloquent->enrichment_attempts;
             $reasons[] = "Maximum attempts reached ({$attempts}/{$options['max_attempts']})";
-            return $this->ineligibleResponse('max_attempts_reached', $reasons, $prospect, $completenessScore);
+            return $this->ineligibleResponse('max_attempts_reached', $reasons, $prospect, $completenessScore, null, $prospectEloquent);
         }
 
         // Éligible !
         return [
             'is_eligible' => true,
-            'reason' => $this->getEligibilityReason($prospect),
+            'reason' => $this->getEligibilityReason($prospect, $prospectEloquent),
             'next_eligible_at' => null,
             'completeness_score' => $completenessScore,
-            'priority' => $this->calculatePriority($prospect, $completenessScore),
-            'details' => $this->getEligibilityDetails($prospect, $completenessScore)
+            'priority' => $this->calculatePriority($prospect, $completenessScore, $prospectEloquent),
+            'details' => $this->getEligibilityDetails($prospect, $completenessScore, $prospectEloquent)
         ];
     }
 
@@ -291,13 +291,17 @@ class EnrichmentEligibilityService
     /**
      * Calcule la priorité d'enrichissement
      */
-    private function calculatePriority(ProspectModel $prospect, float $completenessScore): string
+    private function calculatePriority(ProspectModel $prospect, float $completenessScore, ?ProspectEloquent $prospectEloquent = null): string
     {
-        if (!$prospect->last_enrichment_at) {
+        $lastEnrichment = $prospectEloquent ? $prospectEloquent->last_enrichment_at : null;
+        if (!$lastEnrichment) {
             return 'high'; // Jamais enrichi
         }
         
-        if ($prospect->enrichment_status === 'failed' && $prospect->enrichment_attempts < 2) {
+        $enrichmentStatus = $prospectEloquent ? $prospectEloquent->enrichment_status : null;
+        $enrichmentAttempts = $prospectEloquent ? $prospectEloquent->enrichment_attempts : 0;
+        
+        if ($enrichmentStatus === 'failed' && $enrichmentAttempts < 2) {
             return 'high'; // Échec récent, retry nécessaire
         }
         
@@ -315,17 +319,20 @@ class EnrichmentEligibilityService
     /**
      * Obtient la raison d'éligibilité
      */
-    private function getEligibilityReason(ProspectModel $prospect): string
+    private function getEligibilityReason(ProspectModel $prospect, ?ProspectEloquent $prospectEloquent = null): string
     {
-        if (!$prospect->last_enrichment_at) {
+        $lastEnrichment = $prospectEloquent ? $prospectEloquent->last_enrichment_at : null;
+        $enrichmentStatus = $prospectEloquent ? $prospectEloquent->enrichment_status : null;
+        
+        if (!$lastEnrichment) {
             return 'never_enriched';
         }
         
-        if ($prospect->enrichment_status === 'failed') {
+        if ($enrichmentStatus === 'failed') {
             return 'previous_failure';
         }
         
-        if ($prospect->last_enrichment_at->diffInDays(now()) >= $this->defaultOptions['refresh_after_days']) {
+        if ($lastEnrichment->diffInDays(now()) >= $this->defaultOptions['refresh_after_days']) {
             return 'outdated_enrichment';
         }
         
@@ -335,20 +342,24 @@ class EnrichmentEligibilityService
     /**
      * Obtient les détails d'éligibilité
      */
-    private function getEligibilityDetails(ProspectModel $prospect, float $completenessScore): array
+    private function getEligibilityDetails(ProspectModel $prospect, float $completenessScore, ?ProspectEloquent $prospectEloquent = null): array
     {
         $details = [
             'completeness_score' => $completenessScore,
             'missing_data' => $this->getMissingDataTypes($prospect)
         ];
         
-        if ($prospect->last_enrichment_at) {
-            $details['days_since_last_enrichment'] = $prospect->last_enrichment_at->diffInDays(now());
+        $lastEnrichment = $prospectEloquent ? $prospectEloquent->last_enrichment_at : null;
+        $enrichmentAttempts = $prospectEloquent ? $prospectEloquent->enrichment_attempts : 0;
+        $enrichmentStatus = $prospectEloquent ? $prospectEloquent->enrichment_status : null;
+        
+        if ($lastEnrichment) {
+            $details['days_since_last_enrichment'] = $lastEnrichment->diffInDays(now());
         }
         
-        if ($prospect->enrichment_attempts > 0) {
-            $details['previous_attempts'] = $prospect->enrichment_attempts;
-            $details['last_status'] = $prospect->enrichment_status;
+        if ($enrichmentAttempts > 0) {
+            $details['previous_attempts'] = $enrichmentAttempts;
+            $details['last_status'] = $enrichmentStatus;
         }
         
         return $details;
@@ -379,8 +390,14 @@ class EnrichmentEligibilityService
         array $reasonDetails, 
         ProspectModel $prospect, 
         float $completenessScore = null,
-        Carbon $nextEligibleAt = null
+        Carbon $nextEligibleAt = null,
+        ?ProspectEloquent $prospectEloquent = null
     ): array {
+        $enrichmentStatus = $prospectEloquent ? $prospectEloquent->enrichment_status : null;
+        $enrichmentAttempts = $prospectEloquent ? $prospectEloquent->enrichment_attempts : 0;
+        $lastEnrichment = $prospectEloquent ? $prospectEloquent->last_enrichment_at : null;
+        $blacklisted = $prospectEloquent ? $prospectEloquent->enrichment_blacklisted_at !== null : false;
+        
         return [
             'is_eligible' => false,
             'reason' => $reason,
@@ -388,10 +405,10 @@ class EnrichmentEligibilityService
             'next_eligible_at' => $nextEligibleAt,
             'completeness_score' => $completenessScore ?? $this->calculateCompletenessScore($prospect),
             'details' => [
-                'enrichment_status' => $prospect->enrichment_status,
-                'attempts' => $prospect->enrichment_attempts,
-                'last_enrichment' => $prospect->last_enrichment_at?->toISOString(),
-                'blacklisted' => $prospect->enrichment_blacklisted_at !== null
+                'enrichment_status' => $enrichmentStatus,
+                'attempts' => $enrichmentAttempts,
+                'last_enrichment' => $lastEnrichment?->toISOString(),
+                'blacklisted' => $blacklisted
             ]
         ];
     }

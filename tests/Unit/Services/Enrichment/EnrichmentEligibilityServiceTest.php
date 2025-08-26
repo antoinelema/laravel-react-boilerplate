@@ -65,6 +65,8 @@ class EnrichmentEligibilityServiceTest extends TestCase
         $prospectEloquent = ProspectEloquentFactory::new()->create([
             'name' => 'Complete User',
             'company' => 'Test Company',
+            'city' => 'Test City',
+            'address' => '123 Test Street',
             'contact_info' => [
                 'email' => 'complete@example.com',
                 'phone' => '+1234567890',
@@ -185,6 +187,7 @@ class EnrichmentEligibilityServiceTest extends TestCase
         ProspectEloquentFactory::new()->create([
             'contact_info' => [],
             'last_enrichment_at' => null,
+            'enrichment_status' => 'never',
             'data_completeness_score' => 40,
             'auto_enrich_enabled' => true,
             'enrichment_blacklisted_at' => null
@@ -196,6 +199,7 @@ class EnrichmentEligibilityServiceTest extends TestCase
                 'phone' => '+1234567890'
             ],
             'last_enrichment_at' => Carbon::now()->subDays(10),
+            'enrichment_status' => 'completed',
             'data_completeness_score' => 90,
             'auto_enrich_enabled' => true,
             'enrichment_blacklisted_at' => null
@@ -204,6 +208,7 @@ class EnrichmentEligibilityServiceTest extends TestCase
         ProspectEloquentFactory::new()->create([
             'contact_info' => [],
             'enrichment_blacklisted_at' => Carbon::now(),
+            'enrichment_status' => 'never',
             'data_completeness_score' => 20,
             'auto_enrich_enabled' => true
         ]); // Blacklisté

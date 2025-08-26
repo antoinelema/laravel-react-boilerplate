@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class SearchLimitationTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     /** @test */
     public function free_user_can_search_within_daily_limit()
@@ -57,7 +57,7 @@ class SearchLimitationTest extends TestCase
         $user = User::factory()->create([
             'subscription_type' => 'free',
             'daily_searches_count' => 2, // Déjà à la limite
-            'daily_searches_reset_at' => now()
+            'daily_searches_reset_at' => now()->addHour() // Futur pour éviter le reset
         ]);
         
         $token = $user->createToken('test-token')->plainTextToken;
@@ -112,7 +112,7 @@ class SearchLimitationTest extends TestCase
         $user = User::factory()->create([
             'subscription_type' => 'free',
             'daily_searches_count' => 2,
-            'daily_searches_reset_at' => now()
+            'daily_searches_reset_at' => now()->addHour() // Futur pour éviter le reset
         ]);
         
         $token = $user->createToken('test-token')->plainTextToken;

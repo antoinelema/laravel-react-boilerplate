@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\ProspectEloquent;
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 /**
@@ -12,7 +12,7 @@ use Tests\TestCase;
  */
 class ProspectApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     private UserEloquent $user;
     private UserEloquent $otherUser;

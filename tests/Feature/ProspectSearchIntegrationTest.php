@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 class ProspectSearchIntegrationTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     public function test_prospect_search_api_endpoint_exists_and_responds()
     {
@@ -52,7 +52,7 @@ class ProspectSearchIntegrationTest extends TestCase
         $freeUser = User::factory()->create([
             'subscription_type' => 'free',
             'daily_searches_count' => 5, // À la limite
-            'daily_searches_reset_at' => now()
+            'daily_searches_reset_at' => now()->addHour()
         ]);
         
         $this->actingAs($freeUser, 'sanctum');

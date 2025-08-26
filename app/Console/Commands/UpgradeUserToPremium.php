@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\__Infrastructure__\Persistence\Eloquent\User;
+use App\__Infrastructure__\Eloquent\UserEloquent as User;
 use App\__Infrastructure__\Services\User\UserSubscriptionService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;

@@ -10,7 +10,9 @@ import { ProspectFilters } from './components/ProspectFilters'
 import { CategoryTabs } from './components/CategoryTabs'
 import { ProspectGrid } from './components/ProspectGrid'
 import { EmptyState } from './components/EmptyState'
-import { BulkEnrichmentButton } from './components/EnrichmentButton'
+import { 
+    
+ } from './components/EnrichmentButton'
 import { useEnrichmentStats } from '../hooks/useEnrichmentEligibility'
 
 export default function ProspectDashboard() {

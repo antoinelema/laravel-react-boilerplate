@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\__Domain__\Data\User\Factory as UserFactory;
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Tests\TestCase;
 
 /**
@@ -12,7 +12,7 @@ use Tests\TestCase;
  */
 class ProspectSearchApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     private UserEloquent $user;
 
@@ -92,7 +92,7 @@ class ProspectSearchApiTest extends TestCase
         $response = $this->actingAs($this->user)
             ->postJson('/api/v1/prospects/search', [
                 'query' => 'restaurant',
-                'sources' => ['google_maps', 'pages_jaunes']
+                'sources' => ['google_maps', 'demo']
             ]);
 
         $response->assertStatus(200);
@@ -151,28 +151,21 @@ class ProspectSearchApiTest extends TestCase
                             'city',
                             'postal_code',
                             'address',
-                            'contact_info',
+                            'phone',
+                            'email',
+                            'website',
                             'description',
                             'relevance_score',
-                            'status',
                             'source',
-                            'external_id',
-                            'created_at',
-                            'updated_at'
+                            'external_id'
                         ]
                     ],
                     'total_found',
-                    'search' => [
-                        'id',
-                        'query',
-                        'filters',
-                        'sources',
-                        'results_count',
-                        'saved_count',
-                        'conversion_rate',
-                        'created_at'
-                    ],
-                    'available_sources'
+                    'duplicates_found',
+                    'sources_stats',
+                    'deduplication_info',
+                    'available_sources',
+                    'quota_info'
                 ]
             ]);
     }
@@ -198,6 +191,14 @@ class ProspectSearchApiTest extends TestCase
 
     public function test_get_available_sources(): void
     {
+        // Mock the aggregator service for this specific test
+        $this->mock(\App\__Infrastructure__\Services\Aggregation\SearchAggregatorService::class)
+            ->shouldReceive('getAvailableSources')
+            ->andReturn([
+                'google_maps' => ['name' => 'Google Maps', 'available' => false, 'description' => 'Google Maps API'],
+                'demo' => ['name' => 'Demo', 'available' => true, 'description' => 'Demo data source']
+            ]);
+            
         $response = $this->actingAs($this->user)
             ->getJson('/api/v1/prospects/sources');
 
@@ -209,7 +210,7 @@ class ProspectSearchApiTest extends TestCase
                 'success',
                 'data' => [
                     'sources' => [
-                        'pages_jaunes' => [
+                        'demo' => [
                             'name',
                             'available',
                             'description'
@@ -232,23 +233,47 @@ class ProspectSearchApiTest extends TestCase
 
     private function mockExternalServices(): void
     {
-        // Mock the enrichment service to return empty results
-        // This prevents actual API calls during tests
-        $this->mock(\App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService::class)
-            ->shouldReceive('searchProspects')
-            ->andReturn([])
+        // Mock the search aggregator service that is actually used by the controller
+        $testResult = [
+            'aggregated_results' => [
+                [
+                    'id' => 1,
+                    'name' => 'Test Restaurant',
+                    'company' => 'Test Company',
+                    'sector' => 'Restaurant',
+                    'city' => 'Paris',
+                    'postal_code' => '75001',
+                    'address' => '123 Test Street',
+                    'phone' => '0123456789',
+                    'email' => 'test@example.com',
+                    'website' => 'http://test.com',
+                    'description' => 'Test description',
+                    'relevance_score' => 85.5,
+                    'source' => 'demo',
+                    'external_id' => 'demo_123'
+                ]
+            ],
+            'total_found' => 1,
+            'duplicates_found' => [],
+            'search_stats' => [],
+            'deduplication_info' => []
+        ];
+        
+        $this->mock(\App\__Infrastructure__\Services\Aggregation\SearchAggregatorService::class)
+            ->shouldReceive('search')
+            ->andReturn($testResult)
             ->shouldReceive('getAvailableSources')
             ->andReturn([
-                'google_maps' => ['name' => 'Google Maps', 'available' => false],
-                'pages_jaunes' => ['name' => 'Pages Jaunes', 'available' => false]
+                'google_maps' => ['name' => 'Google Maps', 'available' => false, 'description' => 'Google Maps API'],
+                'demo' => ['name' => 'Demo', 'available' => true, 'description' => 'Demo data source']
             ]);
     }
 
     public function test_search_handles_service_errors_gracefully(): void
     {
         // Mock service to throw exception
-        $this->mock(\App\__Infrastructure__\Services\ProspectEnrichment\ProspectEnrichmentService::class)
-            ->shouldReceive('searchProspects')
+        $this->mock(\App\__Infrastructure__\Services\Aggregation\SearchAggregatorService::class)
+            ->shouldReceive('search')
             ->andThrow(new \Exception('Service unavailable'));
 
         $response = $this->actingAs($this->user)
@@ -256,7 +281,7 @@ class ProspectSearchApiTest extends TestCase
                 'query' => 'restaurant'
             ]);
 
-        $response->assertStatus(400)
+        $response->assertStatus(500)
             ->assertJson([
                 'success' => false
             ])

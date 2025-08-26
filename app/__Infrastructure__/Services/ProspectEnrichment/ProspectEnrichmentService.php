@@ -104,7 +104,9 @@ class ProspectEnrichmentService
         try {
             // Vérification d'éligibilité
             if (!$forceMode) {
-                $eligibility = $this->eligibilityService->isEligibleForEnrichment($prospect, $options);
+                // Récupérer le modèle Eloquent pour les données d'enrichissement
+                $prospectEloquent = $prospect->id ? ProspectEloquent::find($prospect->id) : null;
+                $eligibility = $this->eligibilityService->isEligibleForEnrichment($prospect, $options, $prospectEloquent);
                 if (!$eligibility['is_eligible']) {
                     Log::info('Prospect not eligible for enrichment', [
                         'prospect_id' => $prospect->id,

@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\__Infrastructure__\Eloquent\UserEloquent;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\ResetsTransactions;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class UserApiAuthTest extends TestCase
 {
-    use RefreshDatabase;
+    use ResetsTransactions;
 
     public function test_user_endpoint_requires_authentication()
     {
