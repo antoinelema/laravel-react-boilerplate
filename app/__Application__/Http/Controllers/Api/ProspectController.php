@@ -58,11 +58,11 @@ class ProspectController extends Controller
     /**
      * Affiche les détails d'un prospect spécifique
      */
-    public function show(int $id): JsonResponse
+    public function show(string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -239,11 +239,11 @@ class ProspectController extends Controller
     /**
      * Met à jour un prospect existant
      */
-    public function update(SaveProspectRequest $request, int $id): JsonResponse
+    public function update(SaveProspectRequest $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -279,11 +279,11 @@ class ProspectController extends Controller
     /**
      * Supprime un prospect
      */
-    public function destroy(int $id): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -397,11 +397,11 @@ class ProspectController extends Controller
     /**
      * Enrichit les contacts web d'un prospect
      */
-    public function enrichContacts(Request $request, int $id): JsonResponse
+    public function enrichContacts(Request $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -460,11 +460,11 @@ class ProspectController extends Controller
     /**
      * Vérifie l'éligibilité d'enrichissement d'un prospect
      */
-    public function getEnrichmentEligibility(Request $request, int $id): JsonResponse
+    public function getEnrichmentEligibility(Request $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -494,11 +494,11 @@ class ProspectController extends Controller
     /**
      * Obtient l'historique d'enrichissement d'un prospect
      */
-    public function getEnrichmentHistory(Request $request, int $id): JsonResponse
+    public function getEnrichmentHistory(Request $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -538,11 +538,11 @@ class ProspectController extends Controller
     /**
      * Blacklist un prospect pour l'enrichissement automatique
      */
-    public function blacklistEnrichment(Request $request, int $id): JsonResponse
+    public function blacklistEnrichment(Request $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([
@@ -586,11 +586,11 @@ class ProspectController extends Controller
     /**
      * Active/désactive l'enrichissement automatique pour un prospect
      */
-    public function toggleAutoEnrichment(Request $request, int $id): JsonResponse
+    public function toggleAutoEnrichment(Request $request, string $id): JsonResponse
     {
         $userId = Auth::id();
         
-        $prospect = $this->getProspectCollection()->findById($id);
+        $prospect = $this->getProspectCollection()->findById((int) $id);
         
         if (!$prospect || $prospect->userId !== $userId) {
             return response()->json([

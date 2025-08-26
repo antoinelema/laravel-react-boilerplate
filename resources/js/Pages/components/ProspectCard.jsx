@@ -12,8 +12,17 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { secureApiClient } from '@/lib/secureApi'
+import EnrichmentButton, { EnrichmentStatusBadge } from './EnrichmentButton'
 
-export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories = [] }) {
+export function ProspectCard({ 
+    prospect, 
+    onDelete, 
+    onProspectUpdate, 
+    categories = [], 
+    isSelected = false, 
+    onSelectionChange, 
+    showEnrichment = false 
+}) {
     const [isDeleting, setIsDeleting] = useState(false)
     const [notes, setNotes] = useState([])
     const [isLoadingNotes, setIsLoadingNotes] = useState(false)
@@ -264,6 +273,41 @@ export function ProspectCard({ prospect, onDelete, onProspectUpdate, categories 
                         )}
                     </div>
                     
+                    {/* Ligne d'enrichissement et sélection */}
+                    {(showEnrichment || onSelectionChange) && (
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                            <div className="flex items-center gap-2">
+                                {/* Checkbox de sélection */}
+                                {onSelectionChange && (
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => onSelectionChange(e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                )}
+
+                                {/* Badge d'état d'enrichissement */}
+                                {showEnrichment && (
+                                    <EnrichmentStatusBadge prospect={prospect} />
+                                )}
+                            </div>
+
+                            {/* Bouton d'enrichissement */}
+                            {showEnrichment && (
+                                <EnrichmentButton 
+                                    prospect={prospect}
+                                    onEnrichmentComplete={(prospect, result) => {
+                                        if (onProspectUpdate) {
+                                            onProspectUpdate(prospect.id, result);
+                                        }
+                                    }}
+                                    size="sm"
+                                />
+                            )}
+                        </div>
+                    )}
+
                     <div className="flex gap-2">
                         <Dialog open={isNotesDialogOpen} onOpenChange={setIsNotesDialogOpen}>
                             <DialogTrigger asChild>

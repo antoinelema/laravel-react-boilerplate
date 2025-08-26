@@ -104,7 +104,7 @@ class ProspectCategoryController extends Controller
     /**
      * Mise à jour d'une catégorie
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'string|max:255',
@@ -112,7 +112,7 @@ class ProspectCategoryController extends Controller
             'position' => 'integer|min:0'
         ]);
 
-        $input = UpdateInput::fromData(Auth::id(), $id, $validated);
+        $input = UpdateInput::fromData(Auth::id(), (int) $id, $validated);
         $output = $this->updateHandler->handle($input);
 
         if (!$output->success) {
@@ -141,9 +141,9 @@ class ProspectCategoryController extends Controller
     /**
      * Suppression d'une catégorie
      */
-    public function destroy(int $id): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
-        $input = new DeleteInput(userId: Auth::id(), categoryId: $id);
+        $input = new DeleteInput(userId: Auth::id(), categoryId: (int) $id);
         $output = $this->deleteHandler->handle($input);
 
         if (!$output->success) {
@@ -162,7 +162,7 @@ class ProspectCategoryController extends Controller
     /**
      * Assigner un prospect à des catégories
      */
-    public function assignProspect(Request $request, int $prospectId): JsonResponse
+    public function assignProspect(Request $request, string $prospectId): JsonResponse
     {
         $validated = $request->validate([
             'category_ids' => 'required|array',
@@ -171,7 +171,7 @@ class ProspectCategoryController extends Controller
 
         $input = new AssignProspectInput(
             userId: Auth::id(),
-            prospectId: $prospectId,
+            prospectId: (int) $prospectId,
             categoryIds: $validated['category_ids']
         );
 
@@ -193,11 +193,11 @@ class ProspectCategoryController extends Controller
     /**
      * Retirer un prospect d'une catégorie
      */
-    public function unassignProspect(int $prospectId, int $categoryId): JsonResponse
+    public function unassignProspect(string $prospectId, string $categoryId): JsonResponse
     {
         try {
             // Récupérer les catégories actuelles du prospect
-            $prospect = \App\__Infrastructure__\Eloquent\ProspectEloquent::where('id', $prospectId)
+            $prospect = \App\__Infrastructure__\Eloquent\ProspectEloquent::where('id', (int) $prospectId)
                                                                         ->where('user_id', Auth::id())
                                                                         ->first();
 
@@ -209,7 +209,7 @@ class ProspectCategoryController extends Controller
             }
 
             // Retirer la catégorie
-            $prospect->categories()->detach($categoryId);
+            $prospect->categories()->detach((int) $categoryId);
 
             return response()->json([
                 'success' => true,

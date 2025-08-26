@@ -22,21 +22,21 @@ class RuleBasedValidationStrategy
     {
         $this->validationRules = [
             'email' => [
-                'min_score' => 40,
+                'min_score' => 25,
                 'max_score' => 100,
                 'required_format' => true,
                 'domain_validation' => true,
                 'context_analysis' => true
             ],
             'phone' => [
-                'min_score' => 50,
+                'min_score' => 30,
                 'max_score' => 100,
                 'required_format' => true,
                 'country_validation' => true,
                 'length_validation' => true
             ],
             'website' => [
-                'min_score' => 30,
+                'min_score' => 20,
                 'max_score' => 100,
                 'url_validation' => true,
                 'domain_validation' => true,

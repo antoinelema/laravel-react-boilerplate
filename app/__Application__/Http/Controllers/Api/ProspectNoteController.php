@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 
 class ProspectNoteController extends Controller
 {
-    public function index(Request $request, int $prospectId): JsonResponse
+    public function index(Request $request, string $prospectId): JsonResponse
     {
         $userId = Auth::id();
         
@@ -38,7 +38,7 @@ class ProspectNoteController extends Controller
         ]);
     }
 
-    public function store(Request $request, int $prospectId): JsonResponse
+    public function store(Request $request, string $prospectId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'content' => 'required|string|max:2000',
@@ -80,7 +80,7 @@ class ProspectNoteController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, int $prospectId, int $noteId): JsonResponse
+    public function update(Request $request, string $prospectId, string $noteId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'content' => 'required|string|max:2000',
@@ -126,7 +126,7 @@ class ProspectNoteController extends Controller
         ]);
     }
 
-    public function destroy(int $prospectId, int $noteId): JsonResponse
+    public function destroy(string $prospectId, string $noteId): JsonResponse
     {
         $userId = Auth::id();
         

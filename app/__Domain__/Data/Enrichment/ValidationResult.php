@@ -25,7 +25,7 @@ class ValidationResult
         return new self(
             overallScore: $overallScore,
             ruleScores: $ruleScores,
-            isValid: $isValid ?? ($overallScore >= 60), // Seuil par défaut
+            isValid: $isValid ?? ($overallScore >= 40), // Seuil par défaut réduit
             validationMessages: $validationMessages,
             metadata: $metadata
         );

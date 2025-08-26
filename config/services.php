@@ -64,6 +64,10 @@ return [
         'enable_google_search' => env('WEB_ENRICHMENT_ENABLE_GOOGLE_SEARCH', false),
         'enable_universal_scraper' => env('WEB_ENRICHMENT_ENABLE_UNIVERSAL_SCRAPER', true),
         'timeout' => env('WEB_ENRICHMENT_TIMEOUT', 30),
+        // Configuration d'éligibilité
+        'refresh_after_days' => env('WEB_ENRICHMENT_REFRESH_AFTER_DAYS', 1), // Réduit à 1 jour pour les tests
+        'min_completeness_score' => env('WEB_ENRICHMENT_MIN_COMPLETENESS_SCORE', 60), // Réduit de 80 à 60
+        'max_attempts' => env('WEB_ENRICHMENT_MAX_ATTEMPTS', 3),
     ],
 
     // Configuration DuckDuckGo Search (gratuit)

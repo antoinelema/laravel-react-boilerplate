@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useProspectEnrichment } from '../../hooks/useEnrichmentEligibility';
 
 const EnrichmentButton = ({ 
@@ -148,7 +149,7 @@ const EnrichmentButton = ({
                 onClick={handleToggleForce}
                 title={forceMode ? 'Annuler le mode force' : 'Forcer l\'enrichissement'}
             >
-                {forceMode ? '❌ Annuler' : '🔧 Forcer'}
+                {forceMode ? 'Annuler' : 'Forcer'}
             </button>
         );
     };
@@ -159,7 +160,7 @@ const EnrichmentButton = ({
 
         return (
             <div className="mt-2 text-xs text-green-600">
-                ✅ {getTotalContactsFound()} contacts trouvés
+                {getTotalContactsFound()} contacts trouvés
             </div>
         );
     };
@@ -170,7 +171,7 @@ const EnrichmentButton = ({
 
         return (
             <div className="mt-2 text-xs text-red-600">
-                ❌ {error}
+                Erreur: {error}
                 <button
                     className="ml-2 text-blue-600 hover:underline"
                     onClick={clearError}
@@ -290,7 +291,7 @@ export const BulkEnrichmentButton = ({
                     </div>
                 ) : (
                     <>
-                        🔍 Enrichir la sélection ({selectedProspects.length})
+                        Enrichir la sélection ({selectedProspects.length})
                     </>
                 )}
             </button>
@@ -298,16 +299,16 @@ export const BulkEnrichmentButton = ({
             {results && (
                 <div className="mt-2 text-sm">
                     <div className="text-green-600">
-                        ✅ {results.processed?.length || 0} enrichis
+                        {results.processed?.length || 0} enrichis
                     </div>
                     {results.skipped?.length > 0 && (
                         <div className="text-yellow-600">
-                            ⏭️ {results.skipped.length} ignorés
+                            {results.skipped.length} ignorés
                         </div>
                     )}
                     {results.errors?.length > 0 && (
                         <div className="text-red-600">
-                            ❌ {results.errors.length} erreurs
+                            {results.errors.length} erreurs
                         </div>
                     )}
                 </div>
@@ -315,7 +316,7 @@ export const BulkEnrichmentButton = ({
 
             {error && (
                 <div className="mt-2 text-sm text-red-600">
-                    ❌ {error}
+                    Erreur: {error}
                 </div>
             )}
         </div>
