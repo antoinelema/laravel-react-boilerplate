@@ -179,9 +179,14 @@ class ProspectEnrichmentService
                     'history_id' => $historyId
                 ]);
 
+                // Récupérer le prospect mis à jour pour éviter un appel DB supplémentaire dans le controller
+                $prospectEloquent = \App\__Infrastructure__\Eloquent\ProspectEloquent::find($prospect->id);
+                $updatedProspect = $prospectEloquent ? $prospectEloquent->toDomainModel() : null;
+
                 return [
                     'success' => true,
                     'contacts' => $formattedContacts,
+                    'updated_prospect_formatted' => $this->formatProspectForApi($updatedProspect),
                     'metadata' => [
                         'execution_time_ms' => $webResult->executionTimeMs,
                         'services_used' => array_keys($webResult->metadata['services_results'] ?? []),
@@ -808,5 +813,26 @@ class ProspectEnrichmentService
         if ($hasUpdates) {
             $updates['contact_info'] = json_encode($newContactInfo);
         }
+    }
+
+    /**
+     * Formate un prospect pour l'API - logique de présentation centralisée
+     */
+    private function formatProspectForApi($prospect): ?array
+    {
+        if (!$prospect) {
+            return null;
+        }
+
+        return [
+            'id' => $prospect->id,
+            'email' => $prospect->contactInfo['email'] ?? null,
+            'telephone' => $prospect->contactInfo['phone'] ?? null,
+            'website' => $prospect->contactInfo['website'] ?? null,
+            'contact_info' => $prospect->contactInfo,
+            'last_enrichment_at' => $prospect->lastEnrichmentAt?->toISOString(),
+            'enrichment_score' => $prospect->enrichmentScore,
+            'data_completeness_score' => $prospect->dataCompletenessScore
+        ];
     }
 }

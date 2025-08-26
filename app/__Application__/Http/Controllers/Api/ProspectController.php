@@ -429,25 +429,13 @@ class ProspectController extends Controller
             ]);
 
             if ($result['success']) {
-                // Récupérer le prospect mis à jour après enrichissement
-                $updatedProspect = $this->getProspectCollection()->findById((int) $id);
-                
                 return response()->json([
                     'success' => true,
                     'message' => 'Enrichissement terminé avec succès',
                     'data' => [
                         'contacts' => $result['contacts'],
                         'metadata' => $result['metadata'] ?? [],
-                        'updated_prospect' => $updatedProspect ? [
-                            'id' => $updatedProspect->id,
-                            'email' => $updatedProspect->contactInfo['email'] ?? null,
-                            'telephone' => $updatedProspect->contactInfo['phone'] ?? null,
-                            'website' => $updatedProspect->contactInfo['website'] ?? null,
-                            'contact_info' => $updatedProspect->contactInfo,
-                            'last_enrichment_at' => $updatedProspect->lastEnrichmentAt?->toISOString(),
-                            'enrichment_score' => $updatedProspect->enrichmentScore,
-                            'data_completeness_score' => $updatedProspect->dataCompletenessScore
-                        ] : null
+                        'updated_prospect' => $result['updated_prospect_formatted'] ?? null
                     ]
                 ]);
             } else {
