@@ -12,7 +12,7 @@
         "php": "^8.2",
         "facebook/webdriver": "*",
         "inertiajs/inertia-laravel": "^2.0",
-        "laravel/framework": "^11.31",
+        "laravel/framework": "^12.25",
         "laravel/sanctum": "^4.2",
         "laravel/socialite": "*",
         "laravel/tinker": "^2.9",
